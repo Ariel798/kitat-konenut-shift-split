@@ -125,11 +125,28 @@ const ShiftScheduler = () => {
             memberDayShifts[member.name][day] < 2 &&
             memberTotalShifts[member.name] < maxShiftsPerEmployee;
         });
-        // Use exact number of workers
         const exactWorkers = isDayShift(timeSlot) ? dayShiftWorkers : nightShiftWorkers;
         const assignedCount = Math.min(exactWorkers, availableMembers.length);
-        const shuffled = [...availableMembers].sort(() => 0.5 - Math.random());
-        const assignedMembers = shuffled.slice(0, assignedCount);
+        // Sort available members by their total assigned shifts (ascending)
+        const sortedByShifts = [...availableMembers].sort((a, b) => {
+          return memberTotalShifts[a.name] - memberTotalShifts[b.name];
+        });
+        // If there is a tie, shuffle among those with the same count
+        let assignedMembers: typeof availableMembers = [];
+        let i = 0;
+        while (assignedMembers.length < assignedCount && i < sortedByShifts.length) {
+          // Find all with the same shift count as the current index
+          const currentCount = memberTotalShifts[sortedByShifts[i].name];
+          const sameCountGroup = sortedByShifts.filter(m => memberTotalShifts[m.name] === currentCount && !assignedMembers.includes(m));
+          // Shuffle this group
+          const shuffledGroup = sameCountGroup.sort(() => 0.5 - Math.random());
+          for (const m of shuffledGroup) {
+            if (assignedMembers.length < assignedCount) {
+              assignedMembers.push(m);
+            }
+          }
+          i += sameCountGroup.length;
+        }
         if (assignedMembers.length > 0) {
           assignedMembers.forEach(member => {
             memberDayShifts[member.name][day]++;
@@ -166,7 +183,8 @@ const ShiftScheduler = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" dir="rtl">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
+        <div className="relative text-center space-y-2">
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-3 py-1 font-mono">v1.0.3</span>
           <h1 className="text-4xl font-bold text-gray-800 mb-2">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
