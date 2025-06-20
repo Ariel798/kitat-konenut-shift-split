@@ -68,11 +68,22 @@ const ShiftScheduler = () => {
 
   const generateShifts = () => {
     const newShifts: Shift[] = [];
+    // Track shifts per member per day (member name -> day -> shift count)
+    const memberDayShifts: Record<string, Record<number, number>> = {};
+    
+    // Initialize tracking
+    teamMembers.forEach(member => {
+      memberDayShifts[member.name] = {};
+      for (let day = 0; day < 7; day++) {
+        memberDayShifts[member.name][day] = 0;
+      }
+    });
     
     for (let day = 0; day < 7; day++) {
       for (const timeSlot of TIME_SLOTS) {
         const availableMembers = teamMembers.filter(member => 
-          !member.unavailableDays.includes(day)
+          !member.unavailableDays.includes(day) && 
+          memberDayShifts[member.name][day] < 2 // Maximum 2 shifts per day
         );
         
         // Determine minimum workers based on day/night shift
@@ -85,6 +96,11 @@ const ShiftScheduler = () => {
         const assignedMembers = shuffled.slice(0, assignedCount);
         
         if (assignedMembers.length > 0) {
+          // Update shift count for assigned members
+          assignedMembers.forEach(member => {
+            memberDayShifts[member.name][day]++;
+          });
+          
           newShifts.push({
             day,
             timeSlot,
@@ -95,6 +111,22 @@ const ShiftScheduler = () => {
     }
     
     setShifts(newShifts);
+  };
+
+  // Calculate total shifts per employee
+  const getShiftSummary = () => {
+    const summary: Record<string, number> = {};
+    teamMembers.forEach(member => {
+      summary[member.name] = 0;
+    });
+    
+    shifts.forEach(shift => {
+      shift.members.forEach(member => {
+        summary[member] = (summary[member] || 0) + 1;
+      });
+    });
+    
+    return summary;
   };
 
   return (
@@ -325,6 +357,29 @@ const ShiftScheduler = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Shift Summary */}
+        {shifts.length > 0 && (
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                סיכום משמרות לעובד
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {Object.entries(getShiftSummary()).map(([memberName, shiftCount]) => (
+                  <div key={memberName} className="bg-gray-50 p-3 rounded-lg text-center">
+                    <div className="font-medium text-gray-800">{memberName}</div>
+                    <div className="text-2xl font-bold text-blue-600">{shiftCount}</div>
+                    <div className="text-xs text-gray-500">משמרות</div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
