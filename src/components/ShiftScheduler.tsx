@@ -46,7 +46,7 @@ const getShiftCategory = (timeSlot: string): string => {
   return 'day'; // default
 };
 
-// Helper function to determine if a time slot is day or night
+// Helper function to determine if a time slot is day ornpm run night
 const isDayShift = (timeSlot: string) => {
   return ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'].includes(timeSlot);
 };
@@ -61,6 +61,8 @@ const ShiftScheduler = () => {
   const [minDayWorkers, setMinDayWorkers] = useState(1);
   const [minNightWorkers, setMinNightWorkers] = useState(1);
   const [maxShiftsPerEmployee, setMaxShiftsPerEmployee] = useState(10);
+  const [dayShiftWorkers, setDayShiftWorkers] = useState(1);
+  const [nightShiftWorkers, setNightShiftWorkers] = useState(1);
 
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
 
@@ -105,12 +107,8 @@ const ShiftScheduler = () => {
 
   const generateShifts = () => {
     const newShifts: Shift[] = [];
-    // Track shifts per member per day (member name -> day -> shift count)
     const memberDayShifts: Record<string, Record<number, number>> = {};
-    // Track total shifts per member
     const memberTotalShifts: Record<string, number> = {};
-    
-    // Initialize tracking
     teamMembers.forEach(member => {
       memberDayShifts[member.name] = {};
       memberTotalShifts[member.name] = 0;
@@ -118,33 +116,25 @@ const ShiftScheduler = () => {
         memberDayShifts[member.name][day] = 0;
       }
     });
-    
     for (let day = 0; day < 7; day++) {
       for (const timeSlot of TIME_SLOTS) {
         const shiftCategory = getShiftCategory(timeSlot);
         const availableMembers = teamMembers.filter(member => {
           const dayUnavailable = member.unavailableShifts[day] || [];
-          return !dayUnavailable.includes(shiftCategory) && 
-                 memberDayShifts[member.name][day] < 2 && // Maximum 2 shifts per day
-                 memberTotalShifts[member.name] < maxShiftsPerEmployee; // NEW: Maximum shifts per week
+          return !dayUnavailable.includes(shiftCategory) &&
+            memberDayShifts[member.name][day] < 2 &&
+            memberTotalShifts[member.name] < maxShiftsPerEmployee;
         });
-        
-        // Determine minimum workers based on day/night shift
-        const minWorkers = isDayShift(timeSlot) ? minDayWorkers : minNightWorkers;
-        
-        // Assign workers ensuring minimum requirement is met
+        // Use exact number of workers
+        const exactWorkers = isDayShift(timeSlot) ? dayShiftWorkers : nightShiftWorkers;
+        const assignedCount = Math.min(exactWorkers, availableMembers.length);
         const shuffled = [...availableMembers].sort(() => 0.5 - Math.random());
-        const maxWorkers = Math.min(Math.max(minWorkers, Math.floor(Math.random() * 3) + 1), shuffled.length);
-        const assignedCount = Math.max(minWorkers, Math.min(maxWorkers, shuffled.length));
         const assignedMembers = shuffled.slice(0, assignedCount);
-        
         if (assignedMembers.length > 0) {
-          // Update shift count for assigned members
           assignedMembers.forEach(member => {
             memberDayShifts[member.name][day]++;
-            memberTotalShifts[member.name]++; // NEW: increment total shifts
+            memberTotalShifts[member.name]++;
           });
-          
           newShifts.push({
             day,
             timeSlot,
@@ -153,7 +143,6 @@ const ShiftScheduler = () => {
         }
       }
     }
-    
     setShifts(newShifts);
   };
 
@@ -221,24 +210,24 @@ const ShiftScheduler = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="min-day-workers">מינימום עובדים במשמרת יום (06:00-22:00)</Label>
+                <Label htmlFor="day-shift-workers">סד"כ במשמרת יום (06:00-22:00)</Label>
                 <Input
-                  id="min-day-workers"
+                  id="day-shift-workers"
                   type="number"
                   min="1"
-                  value={minDayWorkers}
-                  onChange={(e) => setMinDayWorkers(Math.max(1, parseInt(e.target.value) || 1))}
+                  value={dayShiftWorkers}
+                  onChange={(e) => setDayShiftWorkers(Math.max(1, parseInt(e.target.value) || 1))}
                   className="w-full"
                 />
               </div>
               <div>
-                <Label htmlFor="min-night-workers">מינימום עובדים במשמרת לילה (22:00-06:00)</Label>
+                <Label htmlFor="night-shift-workers">סד"כ במשמרת לילה (22:00-06:00)</Label>
                 <Input
-                  id="min-night-workers"
+                  id="night-shift-workers"
                   type="number"
                   min="1"
-                  value={minNightWorkers}
-                  onChange={(e) => setMinNightWorkers(Math.max(1, parseInt(e.target.value) || 1))}
+                  value={nightShiftWorkers}
+                  onChange={(e) => setNightShiftWorkers(Math.max(1, parseInt(e.target.value) || 1))}
                   className="w-full"
                 />
               </div>
