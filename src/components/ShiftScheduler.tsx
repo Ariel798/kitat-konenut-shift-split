@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -61,6 +60,7 @@ const ShiftScheduler = () => {
   const [newMemberUnavailableShifts, setNewMemberUnavailableShifts] = useState<Record<number, string[]>>({});
   const [minDayWorkers, setMinDayWorkers] = useState(1);
   const [minNightWorkers, setMinNightWorkers] = useState(1);
+  const [maxShiftsPerEmployee, setMaxShiftsPerEmployee] = useState(10);
 
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
 
@@ -107,10 +107,13 @@ const ShiftScheduler = () => {
     const newShifts: Shift[] = [];
     // Track shifts per member per day (member name -> day -> shift count)
     const memberDayShifts: Record<string, Record<number, number>> = {};
+    // Track total shifts per member
+    const memberTotalShifts: Record<string, number> = {};
     
     // Initialize tracking
     teamMembers.forEach(member => {
       memberDayShifts[member.name] = {};
+      memberTotalShifts[member.name] = 0;
       for (let day = 0; day < 7; day++) {
         memberDayShifts[member.name][day] = 0;
       }
@@ -122,7 +125,8 @@ const ShiftScheduler = () => {
         const availableMembers = teamMembers.filter(member => {
           const dayUnavailable = member.unavailableShifts[day] || [];
           return !dayUnavailable.includes(shiftCategory) && 
-                 memberDayShifts[member.name][day] < 2; // Maximum 2 shifts per day
+                 memberDayShifts[member.name][day] < 2 && // Maximum 2 shifts per day
+                 memberTotalShifts[member.name] < maxShiftsPerEmployee; // NEW: Maximum shifts per week
         });
         
         // Determine minimum workers based on day/night shift
@@ -138,6 +142,7 @@ const ShiftScheduler = () => {
           // Update shift count for assigned members
           assignedMembers.forEach(member => {
             memberDayShifts[member.name][day]++;
+            memberTotalShifts[member.name]++; // NEW: increment total shifts
           });
           
           newShifts.push({
@@ -214,7 +219,7 @@ const ShiftScheduler = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="min-day-workers">מינימום עובדים במשמרת יום (06:00-22:00)</Label>
                 <Input
@@ -234,6 +239,17 @@ const ShiftScheduler = () => {
                   min="1"
                   value={minNightWorkers}
                   onChange={(e) => setMinNightWorkers(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <Label htmlFor="max-shifts-per-employee">מקסימום משמרות לעובד בשבוע</Label>
+                <Input
+                  id="max-shifts-per-employee"
+                  type="number"
+                  min="1"
+                  value={maxShiftsPerEmployee}
+                  onChange={(e) => setMaxShiftsPerEmployee(Math.max(1, parseInt(e.target.value) || 1))}
                   className="w-full"
                 />
               </div>
