@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { he } from 'date-fns/locale';
 interface TeamMember {
   id: string;
   name: string;
-  unavailableDays: number[]; // 0 = Sunday, 1 = Monday, etc.
+  unavailableShifts: string[]; // Array of shift types: 'morning', 'day', 'night'
 }
 
 interface Shift {
@@ -22,6 +23,29 @@ interface Shift {
 
 const DAYS_OF_WEEK = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const TIME_SLOTS = ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'];
+
+// Define shift categories
+const SHIFT_CATEGORIES = {
+  morning: ['06:00-10:00', '10:00-14:00'],
+  day: ['14:00-18:00', '18:00-22:00'],
+  night: ['22:00-02:00', '02:00-06:00']
+};
+
+const SHIFT_CATEGORY_NAMES = {
+  morning: 'בוקר (06:00-14:00)',
+  day: 'יום (14:00-22:00)',
+  night: 'לילה (22:00-06:00)'
+};
+
+// Helper function to get shift category for a time slot
+const getShiftCategory = (timeSlot: string): string => {
+  for (const [category, slots] of Object.entries(SHIFT_CATEGORIES)) {
+    if (slots.includes(timeSlot)) {
+      return category;
+    }
+  }
+  return 'day'; // default
+};
 
 // Helper function to determine if a time slot is day or night
 const isDayShift = (timeSlot: string) => {
@@ -34,7 +58,7 @@ const ShiftScheduler = () => {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberUnavailable, setNewMemberUnavailable] = useState<number[]>([]);
+  const [newMemberUnavailableShifts, setNewMemberUnavailableShifts] = useState<string[]>([]);
   const [minDayWorkers, setMinDayWorkers] = useState(1);
   const [minNightWorkers, setMinNightWorkers] = useState(1);
 
@@ -45,11 +69,11 @@ const ShiftScheduler = () => {
       const newMember: TeamMember = {
         id: Date.now().toString(),
         name: newMemberName.trim(),
-        unavailableDays: [...newMemberUnavailable]
+        unavailableShifts: [...newMemberUnavailableShifts]
       };
       setTeamMembers([...teamMembers, newMember]);
       setNewMemberName('');
-      setNewMemberUnavailable([]);
+      setNewMemberUnavailableShifts([]);
       setShowAddForm(false);
     }
   };
@@ -58,11 +82,11 @@ const ShiftScheduler = () => {
     setTeamMembers(teamMembers.filter(member => member.id !== id));
   };
 
-  const toggleUnavailableDay = (dayIndex: number) => {
-    setNewMemberUnavailable(prev => 
-      prev.includes(dayIndex) 
-        ? prev.filter(d => d !== dayIndex)
-        : [...prev, dayIndex]
+  const toggleUnavailableShift = (shiftCategory: string) => {
+    setNewMemberUnavailableShifts(prev => 
+      prev.includes(shiftCategory) 
+        ? prev.filter(s => s !== shiftCategory)
+        : [...prev, shiftCategory]
     );
   };
 
@@ -81,8 +105,9 @@ const ShiftScheduler = () => {
     
     for (let day = 0; day < 7; day++) {
       for (const timeSlot of TIME_SLOTS) {
+        const shiftCategory = getShiftCategory(timeSlot);
         const availableMembers = teamMembers.filter(member => 
-          !member.unavailableDays.includes(day) && 
+          !member.unavailableShifts.includes(shiftCategory) && 
           memberDayShifts[member.name][day] < 2 // Maximum 2 shifts per day
         );
         
@@ -231,15 +256,15 @@ const ShiftScheduler = () => {
                     />
                   </div>
                   <div>
-                    <Label>ימים בהם לא זמין:</Label>
+                    <Label>משמרות בהן לא זמין:</Label>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {DAYS_OF_WEEK.map((day, index) => (
-                        <label key={index} className="flex items-center gap-2 cursor-pointer">
+                      {Object.entries(SHIFT_CATEGORY_NAMES).map(([category, name]) => (
+                        <label key={category} className="flex items-center gap-2 cursor-pointer">
                           <Checkbox
-                            checked={newMemberUnavailable.includes(index)}
-                            onCheckedChange={() => toggleUnavailableDay(index)}
+                            checked={newMemberUnavailableShifts.includes(category)}
+                            onCheckedChange={() => toggleUnavailableShift(category)}
                           />
-                          <span className="text-sm">{day}</span>
+                          <span className="text-sm">{name}</span>
                         </label>
                       ))}
                     </div>
@@ -265,9 +290,9 @@ const ShiftScheduler = () => {
                   <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex-1">
                       <h3 className="font-medium">{member.name}</h3>
-                      {member.unavailableDays.length > 0 && (
+                      {member.unavailableShifts.length > 0 && (
                         <p className="text-sm text-gray-600">
-                          לא זמין: {member.unavailableDays.map(day => DAYS_OF_WEEK[day]).join(', ')}
+                          לא זמין: {member.unavailableShifts.map(shift => SHIFT_CATEGORY_NAMES[shift as keyof typeof SHIFT_CATEGORY_NAMES]).join(', ')}
                         </p>
                       )}
                     </div>
