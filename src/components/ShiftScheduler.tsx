@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar, Plus, Trash2, Users, Clock } from 'lucide-react';
+import { Calendar, Plus, Trash2, Users, Clock, Settings } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 
@@ -24,6 +23,11 @@ interface Shift {
 const DAYS_OF_WEEK = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const TIME_SLOTS = ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'];
 
+// Helper function to determine if a time slot is day or night
+const isDayShift = (timeSlot: string) => {
+  return ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'].includes(timeSlot);
+};
+
 const ShiftScheduler = () => {
   const [selectedWeek, setSelectedWeek] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -31,6 +35,8 @@ const ShiftScheduler = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberUnavailable, setNewMemberUnavailable] = useState<number[]>([]);
+  const [minDayWorkers, setMinDayWorkers] = useState(1);
+  const [minNightWorkers, setMinNightWorkers] = useState(1);
 
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
 
@@ -69,9 +75,13 @@ const ShiftScheduler = () => {
           !member.unavailableDays.includes(day)
         );
         
-        // Assign 1-3 members per shift randomly from available members
+        // Determine minimum workers based on day/night shift
+        const minWorkers = isDayShift(timeSlot) ? minDayWorkers : minNightWorkers;
+        
+        // Assign workers ensuring minimum requirement is met
         const shuffled = [...availableMembers].sort(() => 0.5 - Math.random());
-        const assignedCount = Math.min(Math.max(1, Math.floor(Math.random() * 3) + 1), shuffled.length);
+        const maxWorkers = Math.min(Math.max(minWorkers, Math.floor(Math.random() * 3) + 1), shuffled.length);
+        const assignedCount = Math.max(minWorkers, Math.min(maxWorkers, shuffled.length));
         const assignedMembers = shuffled.slice(0, assignedCount);
         
         if (assignedMembers.length > 0) {
@@ -120,6 +130,42 @@ const ShiftScheduler = () => {
               <span className="text-sm text-gray-600">
                 {format(weekStart, 'dd/MM/yyyy', { locale: he })} - {format(addDays(weekStart, 6), 'dd/MM/yyyy', { locale: he })}
               </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Shift Settings */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              הגדרות משמרות
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="min-day-workers">מינימום עובדים במשמרת יום (06:00-22:00)</Label>
+                <Input
+                  id="min-day-workers"
+                  type="number"
+                  min="1"
+                  value={minDayWorkers}
+                  onChange={(e) => setMinDayWorkers(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <Label htmlFor="min-night-workers">מינימום עובדים במשמרת לילה (22:00-06:00)</Label>
+                <Input
+                  id="min-night-workers"
+                  type="number"
+                  min="1"
+                  value={minNightWorkers}
+                  onChange={(e) => setMinNightWorkers(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
