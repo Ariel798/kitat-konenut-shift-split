@@ -12,7 +12,7 @@ import { he } from 'date-fns/locale';
 interface TeamMember {
   id: string;
   name: string;
-  unavailableShifts: string[]; // Array of shift types: 'morning', 'day', 'night'
+  unavailableShifts: Record<number, string[]>; // day of week -> array of unavailable shift types
 }
 
 interface Shift {
@@ -32,9 +32,9 @@ const SHIFT_CATEGORIES = {
 };
 
 const SHIFT_CATEGORY_NAMES = {
-  morning: 'בוקר (06:00-14:00)',
-  day: 'יום (14:00-22:00)',
-  night: 'לילה (22:00-06:00)'
+  morning: 'בוקר',
+  day: 'יום',
+  night: 'לילה'
 };
 
 // Helper function to get shift category for a time slot
@@ -58,7 +58,7 @@ const ShiftScheduler = () => {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberUnavailableShifts, setNewMemberUnavailableShifts] = useState<string[]>([]);
+  const [newMemberUnavailableShifts, setNewMemberUnavailableShifts] = useState<Record<number, string[]>>({});
   const [minDayWorkers, setMinDayWorkers] = useState(1);
   const [minNightWorkers, setMinNightWorkers] = useState(1);
 
@@ -69,11 +69,11 @@ const ShiftScheduler = () => {
       const newMember: TeamMember = {
         id: Date.now().toString(),
         name: newMemberName.trim(),
-        unavailableShifts: [...newMemberUnavailableShifts]
+        unavailableShifts: { ...newMemberUnavailableShifts }
       };
       setTeamMembers([...teamMembers, newMember]);
       setNewMemberName('');
-      setNewMemberUnavailableShifts([]);
+      setNewMemberUnavailableShifts({});
       setShowAddForm(false);
     }
   };
@@ -82,12 +82,25 @@ const ShiftScheduler = () => {
     setTeamMembers(teamMembers.filter(member => member.id !== id));
   };
 
-  const toggleUnavailableShift = (shiftCategory: string) => {
-    setNewMemberUnavailableShifts(prev => 
-      prev.includes(shiftCategory) 
-        ? prev.filter(s => s !== shiftCategory)
-        : [...prev, shiftCategory]
-    );
+  const toggleUnavailableShift = (dayIndex: number, shiftCategory: string) => {
+    setNewMemberUnavailableShifts(prev => {
+      const dayUnavailable = prev[dayIndex] || [];
+      const isCurrentlyUnavailable = dayUnavailable.includes(shiftCategory);
+      
+      if (isCurrentlyUnavailable) {
+        // Remove from unavailable
+        const newDayUnavailable = dayUnavailable.filter(s => s !== shiftCategory);
+        if (newDayUnavailable.length === 0) {
+          const { [dayIndex]: _, ...rest } = prev;
+          return rest;
+        } else {
+          return { ...prev, [dayIndex]: newDayUnavailable };
+        }
+      } else {
+        // Add to unavailable
+        return { ...prev, [dayIndex]: [...dayUnavailable, shiftCategory] };
+      }
+    });
   };
 
   const generateShifts = () => {
@@ -106,10 +119,11 @@ const ShiftScheduler = () => {
     for (let day = 0; day < 7; day++) {
       for (const timeSlot of TIME_SLOTS) {
         const shiftCategory = getShiftCategory(timeSlot);
-        const availableMembers = teamMembers.filter(member => 
-          !member.unavailableShifts.includes(shiftCategory) && 
-          memberDayShifts[member.name][day] < 2 // Maximum 2 shifts per day
-        );
+        const availableMembers = teamMembers.filter(member => {
+          const dayUnavailable = member.unavailableShifts[day] || [];
+          return !dayUnavailable.includes(shiftCategory) && 
+                 memberDayShifts[member.name][day] < 2; // Maximum 2 shifts per day
+        });
         
         // Determine minimum workers based on day/night shift
         const minWorkers = isDayShift(timeSlot) ? minDayWorkers : minNightWorkers;
@@ -256,17 +270,36 @@ const ShiftScheduler = () => {
                     />
                   </div>
                   <div>
-                    <Label>משמרות בהן לא זמין:</Label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {Object.entries(SHIFT_CATEGORY_NAMES).map(([category, name]) => (
-                        <label key={category} className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            checked={newMemberUnavailableShifts.includes(category)}
-                            onCheckedChange={() => toggleUnavailableShift(category)}
-                          />
-                          <span className="text-sm">{name}</span>
-                        </label>
-                      ))}
+                    <Label>בחר משמרות בהן לא זמין (לפי יום ומשמרת):</Label>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full border-collapse border border-gray-300">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border border-gray-300 p-2 text-sm font-medium">יום</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">בוקר<br/>(06:00-14:00)</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">יום<br/>(14:00-22:00)</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">לילה<br/>(22:00-06:00)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {DAYS_OF_WEEK.map((dayName, dayIndex) => (
+                            <tr key={dayIndex}>
+                              <td className="border border-gray-300 p-2 text-sm font-medium bg-gray-50">
+                                {dayName}
+                              </td>
+                              {(['morning', 'day', 'night'] as const).map((shiftType) => (
+                                <td key={shiftType} className="border border-gray-300 p-2 text-center">
+                                  <Checkbox
+                                    checked={(newMemberUnavailableShifts[dayIndex] || []).includes(shiftType)}
+                                    onCheckedChange={() => toggleUnavailableShift(dayIndex, shiftType)}
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="text-xs text-gray-500 mt-2">סמן משמרות בהן העובד לא זמין</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -290,10 +323,15 @@ const ShiftScheduler = () => {
                   <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex-1">
                       <h3 className="font-medium">{member.name}</h3>
-                      {member.unavailableShifts.length > 0 && (
-                        <p className="text-sm text-gray-600">
-                          לא זמין: {member.unavailableShifts.map(shift => SHIFT_CATEGORY_NAMES[shift as keyof typeof SHIFT_CATEGORY_NAMES]).join(', ')}
-                        </p>
+                      {Object.keys(member.unavailableShifts).length > 0 && (
+                        <div className="text-sm text-gray-600 mt-1">
+                          <span>לא זמין: </span>
+                          {Object.entries(member.unavailableShifts).map(([day, shifts]) => (
+                            <span key={day} className="mr-2">
+                              {DAYS_OF_WEEK[parseInt(day)]}: {shifts.map(shift => SHIFT_CATEGORY_NAMES[shift as keyof typeof SHIFT_CATEGORY_NAMES]).join(', ')}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <Button
