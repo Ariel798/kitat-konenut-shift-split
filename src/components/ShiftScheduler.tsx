@@ -131,7 +131,6 @@ const ShiftScheduler = () => {
         const availableMembers = teamMembers.filter(member => {
           const dayAvailable = member.availableShifts[day] || [];
           return dayAvailable.includes(shiftCategory) &&
-            memberDayShifts[member.name][day] < 2 &&
             memberTotalShifts[member.name] < maxShiftsPerEmployee;
         });
         const exactWorkers = isDayShift(timeSlot) ? dayShiftWorkers : nightShiftWorkers;
