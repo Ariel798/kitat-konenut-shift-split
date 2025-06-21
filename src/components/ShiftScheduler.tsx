@@ -75,6 +75,177 @@ const ShiftScheduler = () => {
     return allAvailable;
   };
 
+  // Development preset workers data
+  const presetWorkers = [
+    {
+      name: 'אריאל',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        3: ['night', 'day', 'morning'], // רביעי
+        4: ['night', 'day', 'morning'], // חמישי
+        5: ['night', 'day', 'morning'], // שישי
+        6: ['night', 'day', 'morning']  // שבת
+      }
+    },
+    {
+      name: 'בניטה',
+      availability: {
+        0: ['night', 'day', 'morning'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        4: ['morning', 'day', 'night']  // חמישי
+      }
+    },
+    {
+      name: 'איתמר',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'טל',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'אורי',
+      availability: {
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'אורן',
+      availability: {
+        0: ['morning', 'day'], // ראשון
+        1: ['morning', 'day'], // שני
+        2: ['morning', 'day'], // שלישי
+        3: ['morning', 'day'], // רביעי
+        4: ['morning', 'day'], // חמישי
+        5: ['morning', 'day'], // שישי
+        6: ['morning', 'day']  // שבת
+      }
+    },
+    {
+      name: 'אלירן',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'אפי',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'איציק דניאל',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'ליעוז',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'שמוליק',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'אושרי',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        5: ['morning', 'day', 'night'], // שישי
+        6: ['morning', 'day', 'night']  // שבת
+      }
+    },
+    {
+      name: 'עידו',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['day', 'night', 'morning'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'day', 'night'], // רביעי
+        4: ['morning', 'day', 'night'], // חמישי
+        6: ['night']  // שבת
+      }
+    },
+    {
+      name: 'גיל',
+      availability: {
+        0: ['morning', 'day', 'night'], // ראשון
+        1: ['morning', 'day', 'night'], // שני
+        2: ['morning', 'day', 'night'], // שלישי
+        3: ['morning', 'night'], // רביעי
+        4: ['morning', 'day', 'night']  // חמישי
+      }
+    }
+  ];
+
+  const addPresetWorkers = () => {
+    const newMembers: TeamMember[] = presetWorkers.map((worker, index) => ({
+      id: `preset-${Date.now()}-${index}`,
+      name: worker.name,
+      availableShifts: worker.availability
+    }));
+    setTeamMembers([...teamMembers, ...newMembers]);
+  };
+
   const addTeamMember = () => {
     if (newMemberName.trim()) {
       const newMember: TeamMember = {
@@ -116,76 +287,103 @@ const ShiftScheduler = () => {
 
   const generateShifts = () => {
     const newShifts: Shift[] = [];
-    const memberTotalShifts: Record<string, number> = {};
     
-    // Initialize total shifts counter
-    teamMembers.forEach(member => {
-      memberTotalShifts[member.name] = 0;
-    });
-
-    // Pre-calculate total available shifts for each worker
+    // Step 1: Calculate total available shifts for each worker
     const workerAvailability: Record<string, number> = {};
+    const workerShiftCount: Record<string, number> = {};
+    
     teamMembers.forEach(member => {
-      let totalAvailable = 0;
+      workerAvailability[member.name] = 0;
+      workerShiftCount[member.name] = 0;
+      
+      // Count total available shifts for this worker
       for (let day = 0; day < 7; day++) {
         for (const timeSlot of TIME_SLOTS) {
           const shiftCategory = getShiftCategory(timeSlot);
           const dayAvailable = member.availableShifts[day] || [];
           if (dayAvailable.includes(shiftCategory)) {
-            totalAvailable++;
+            workerAvailability[member.name]++;
           }
         }
       }
-      workerAvailability[member.name] = totalAvailable;
     });
 
-    // Process shifts in a more balanced way
+    // Step 2: Create all possible shifts first
+    const allShifts: Array<{day: number, timeSlot: string, shiftCategory: string, availableWorkers: string[]}> = [];
+    
     for (let day = 0; day < 7; day++) {
       for (const timeSlot of TIME_SLOTS) {
         const shiftCategory = getShiftCategory(timeSlot);
-        const availableMembers = teamMembers.filter(member => {
+        const availableWorkers = teamMembers.filter(member => {
           const dayAvailable = member.availableShifts[day] || [];
           return dayAvailable.includes(shiftCategory) &&
-            memberTotalShifts[member.name] < maxShiftsPerEmployee;
-        });
-
-        const exactWorkers = isDayShift(timeSlot) ? dayShiftWorkers : nightShiftWorkers;
-        const assignedCount = Math.min(exactWorkers, availableMembers.length);
-
-        if (assignedCount > 0) {
-          // Sort by a combination of current shifts and availability ratio
-          const sortedByFairness = [...availableMembers].sort((a, b) => {
-            const aRatio = memberTotalShifts[a.name] / Math.max(workerAvailability[a.name], 1);
-            const bRatio = memberTotalShifts[b.name] / Math.max(workerAvailability[b.name], 1);
-            
-            // Primary sort by ratio (lower ratio = more fair)
-            if (Math.abs(aRatio - bRatio) > 0.01) {
-              return aRatio - bRatio;
-            }
-            
-            // Secondary sort by total shifts (lower = more fair)
-            if (memberTotalShifts[a.name] !== memberTotalShifts[b.name]) {
-              return memberTotalShifts[a.name] - memberTotalShifts[b.name];
-            }
-            
-            // Tertiary sort by availability (higher = more fair)
-            return workerAvailability[b.name] - workerAvailability[a.name];
-          });
-
-          const assignedMembers = sortedByFairness.slice(0, assignedCount);
-
-          assignedMembers.forEach(member => {
-            memberTotalShifts[member.name]++;
-          });
-
-          newShifts.push({
+            workerShiftCount[member.name] < maxShiftsPerEmployee;
+        }).map(m => m.name);
+        
+        if (availableWorkers.length > 0) {
+          allShifts.push({
             day,
             timeSlot,
-            members: assignedMembers.map(m => m.name)
+            shiftCategory,
+            availableWorkers
           });
         }
       }
     }
+
+    // Step 3: Sort shifts by priority (fewer available workers first, then by day/time)
+    allShifts.sort((a, b) => {
+      // Primary: Sort by number of available workers (fewer = higher priority)
+      if (a.availableWorkers.length !== b.availableWorkers.length) {
+        return a.availableWorkers.length - b.availableWorkers.length;
+      }
+      // Secondary: Sort by day
+      if (a.day !== b.day) {
+        return a.day - b.day;
+      }
+      // Tertiary: Sort by time slot
+      return TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot);
+    });
+
+    // Step 4: Assign workers to shifts using fair distribution
+    allShifts.forEach(shift => {
+      const exactWorkers = isDayShift(shift.timeSlot) ? dayShiftWorkers : nightShiftWorkers;
+      const assignedCount = Math.min(exactWorkers, shift.availableWorkers.length);
+      
+      if (assignedCount > 0) {
+        // Sort available workers by fairness score
+        const sortedWorkers = shift.availableWorkers.sort((a, b) => {
+          const aRatio = workerShiftCount[a] / Math.max(workerAvailability[a], 1);
+          const bRatio = workerShiftCount[b] / Math.max(workerAvailability[b], 1);
+          
+          // Primary: Lower ratio = more fair
+          if (Math.abs(aRatio - bRatio) > 0.001) {
+            return aRatio - bRatio;
+          }
+          
+          // Secondary: Fewer total shifts = more fair
+          if (workerShiftCount[a] !== workerShiftCount[b]) {
+            return workerShiftCount[a] - workerShiftCount[b];
+          }
+          
+          // Tertiary: More availability = more fair
+          return workerAvailability[b] - workerAvailability[a];
+        });
+
+        const assignedWorkers = sortedWorkers.slice(0, assignedCount);
+        
+        // Update shift counts
+        assignedWorkers.forEach(worker => {
+          workerShiftCount[worker]++;
+        });
+
+        newShifts.push({
+          day: shift.day,
+          timeSlot: shift.timeSlot,
+          members: assignedWorkers
+        });
+      }
+    });
 
     setShifts(newShifts);
   };
@@ -506,6 +704,30 @@ const ShiftScheduler = () => {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Development Preset - Only in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <Card className="shadow-lg border-2 border-green-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-green-700">
+                <Users className="w-5 h-5" />
+                Development Preset
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={addPresetWorkers}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                disabled={teamMembers.length > 0}
+              >
+                Add All Preset Workers ({presetWorkers.length} workers)
+              </Button>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Adds all predefined workers with their specific availability patterns
+              </p>
             </CardContent>
           </Card>
         )}
