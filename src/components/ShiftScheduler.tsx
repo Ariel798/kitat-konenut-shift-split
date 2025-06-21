@@ -116,15 +116,30 @@ const ShiftScheduler = () => {
 
   const generateShifts = () => {
     const newShifts: Shift[] = [];
-    const memberDayShifts: Record<string, Record<number, number>> = {};
     const memberTotalShifts: Record<string, number> = {};
+    
+    // Initialize total shifts counter
     teamMembers.forEach(member => {
-      memberDayShifts[member.name] = {};
       memberTotalShifts[member.name] = 0;
-      for (let day = 0; day < 7; day++) {
-        memberDayShifts[member.name][day] = 0;
-      }
     });
+
+    // Pre-calculate total available shifts for each worker
+    const workerAvailability: Record<string, number> = {};
+    teamMembers.forEach(member => {
+      let totalAvailable = 0;
+      for (let day = 0; day < 7; day++) {
+        for (const timeSlot of TIME_SLOTS) {
+          const shiftCategory = getShiftCategory(timeSlot);
+          const dayAvailable = member.availableShifts[day] || [];
+          if (dayAvailable.includes(shiftCategory)) {
+            totalAvailable++;
+          }
+        }
+      }
+      workerAvailability[member.name] = totalAvailable;
+    });
+
+    // Process shifts in a more balanced way
     for (let day = 0; day < 7; day++) {
       for (const timeSlot of TIME_SLOTS) {
         const shiftCategory = getShiftCategory(timeSlot);
@@ -133,33 +148,36 @@ const ShiftScheduler = () => {
           return dayAvailable.includes(shiftCategory) &&
             memberTotalShifts[member.name] < maxShiftsPerEmployee;
         });
+
         const exactWorkers = isDayShift(timeSlot) ? dayShiftWorkers : nightShiftWorkers;
         const assignedCount = Math.min(exactWorkers, availableMembers.length);
-        // Sort available members by their total assigned shifts (ascending)
-        const sortedByShifts = [...availableMembers].sort((a, b) => {
-          return memberTotalShifts[a.name] - memberTotalShifts[b.name];
-        });
-        // If there is a tie, shuffle among those with the same count
-        let assignedMembers: typeof availableMembers = [];
-        let i = 0;
-        while (assignedMembers.length < assignedCount && i < sortedByShifts.length) {
-          // Find all with the same shift count as the current index
-          const currentCount = memberTotalShifts[sortedByShifts[i].name];
-          const sameCountGroup = sortedByShifts.filter(m => memberTotalShifts[m.name] === currentCount && !assignedMembers.includes(m));
-          // Shuffle this group
-          const shuffledGroup = sameCountGroup.sort(() => 0.5 - Math.random());
-          for (const m of shuffledGroup) {
-            if (assignedMembers.length < assignedCount) {
-              assignedMembers.push(m);
+
+        if (assignedCount > 0) {
+          // Sort by a combination of current shifts and availability ratio
+          const sortedByFairness = [...availableMembers].sort((a, b) => {
+            const aRatio = memberTotalShifts[a.name] / Math.max(workerAvailability[a.name], 1);
+            const bRatio = memberTotalShifts[b.name] / Math.max(workerAvailability[b.name], 1);
+            
+            // Primary sort by ratio (lower ratio = more fair)
+            if (Math.abs(aRatio - bRatio) > 0.01) {
+              return aRatio - bRatio;
             }
-          }
-          i += sameCountGroup.length;
-        }
-        if (assignedMembers.length > 0) {
+            
+            // Secondary sort by total shifts (lower = more fair)
+            if (memberTotalShifts[a.name] !== memberTotalShifts[b.name]) {
+              return memberTotalShifts[a.name] - memberTotalShifts[b.name];
+            }
+            
+            // Tertiary sort by availability (higher = more fair)
+            return workerAvailability[b.name] - workerAvailability[a.name];
+          });
+
+          const assignedMembers = sortedByFairness.slice(0, assignedCount);
+
           assignedMembers.forEach(member => {
-            memberDayShifts[member.name][day]++;
             memberTotalShifts[member.name]++;
           });
+
           newShifts.push({
             day,
             timeSlot,
@@ -168,6 +186,7 @@ const ShiftScheduler = () => {
         }
       }
     }
+
     setShifts(newShifts);
   };
 
@@ -192,7 +211,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.0.0</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.1.0</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
