@@ -63,6 +63,11 @@ const ShiftScheduler = () => {
   const [maxShiftsPerEmployee, setMaxShiftsPerEmployee] = useState(10);
   const [dayShiftWorkers, setDayShiftWorkers] = useState(1);
   const [nightShiftWorkers, setNightShiftWorkers] = useState(1);
+  
+  // Local input states for better mobile handling
+  const [dayShiftWorkersInput, setDayShiftWorkersInput] = useState('1');
+  const [nightShiftWorkersInput, setNightShiftWorkersInput] = useState('1');
+  const [maxShiftsPerEmployeeInput, setMaxShiftsPerEmployeeInput] = useState('10');
 
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
 
@@ -495,21 +500,17 @@ const ShiftScheduler = () => {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  value={dayShiftWorkers}
-                  onChange={(e) => {
+                  value={dayShiftWorkersInput}
+                  onChange={(e) => setDayShiftWorkersInput(e.target.value)}
+                  onBlur={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
-                    if (value === '') {
+                    if (value === '' || parseInt(value) < 1) {
+                      setDayShiftWorkersInput('1');
                       setDayShiftWorkers(1);
                     } else {
                       const numValue = parseInt(value);
-                      if (numValue >= 1) {
-                        setDayShiftWorkers(numValue);
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
-                      setDayShiftWorkers(1);
+                      setDayShiftWorkersInput(numValue.toString());
+                      setDayShiftWorkers(numValue);
                     }
                   }}
                   className="w-full"
@@ -522,21 +523,17 @@ const ShiftScheduler = () => {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  value={nightShiftWorkers}
-                  onChange={(e) => {
+                  value={nightShiftWorkersInput}
+                  onChange={(e) => setNightShiftWorkersInput(e.target.value)}
+                  onBlur={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
-                    if (value === '') {
+                    if (value === '' || parseInt(value) < 1) {
+                      setNightShiftWorkersInput('1');
                       setNightShiftWorkers(1);
                     } else {
                       const numValue = parseInt(value);
-                      if (numValue >= 1) {
-                        setNightShiftWorkers(numValue);
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
-                      setNightShiftWorkers(1);
+                      setNightShiftWorkersInput(numValue.toString());
+                      setNightShiftWorkers(numValue);
                     }
                   }}
                   className="w-full"
@@ -549,21 +546,17 @@ const ShiftScheduler = () => {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  value={maxShiftsPerEmployee}
-                  onChange={(e) => {
+                  value={maxShiftsPerEmployeeInput}
+                  onChange={(e) => setMaxShiftsPerEmployeeInput(e.target.value)}
+                  onBlur={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
-                    if (value === '') {
+                    if (value === '' || parseInt(value) < 1) {
+                      setMaxShiftsPerEmployeeInput('1');
                       setMaxShiftsPerEmployee(1);
                     } else {
                       const numValue = parseInt(value);
-                      if (numValue >= 1) {
-                        setMaxShiftsPerEmployee(numValue);
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
-                      setMaxShiftsPerEmployee(1);
+                      setMaxShiftsPerEmployeeInput(numValue.toString());
+                      setMaxShiftsPerEmployee(numValue);
                     }
                   }}
                   className="w-full"
