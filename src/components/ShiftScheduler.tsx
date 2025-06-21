@@ -316,8 +316,7 @@ const ShiftScheduler = () => {
         const shiftCategory = getShiftCategory(timeSlot);
         const availableWorkers = teamMembers.filter(member => {
           const dayAvailable = member.availableShifts[day] || [];
-          return dayAvailable.includes(shiftCategory) &&
-            workerShiftCount[member.name] < maxShiftsPerEmployee;
+          return dayAvailable.includes(shiftCategory);
         }).map(m => m.name);
         
         if (availableWorkers.length > 0) {
@@ -345,45 +344,74 @@ const ShiftScheduler = () => {
       return TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot);
     });
 
-    // Step 4: Assign workers to shifts using fair distribution
-    allShifts.forEach(shift => {
-      const exactWorkers = isDayShift(shift.timeSlot) ? dayShiftWorkers : nightShiftWorkers;
-      const assignedCount = Math.min(exactWorkers, shift.availableWorkers.length);
-      
-      if (assignedCount > 0) {
-        // Sort available workers by fairness score
-        const sortedWorkers = shift.availableWorkers.sort((a, b) => {
-          const aRatio = workerShiftCount[a] / Math.max(workerAvailability[a], 1);
-          const bRatio = workerShiftCount[b] / Math.max(workerAvailability[b], 1);
-          
-          // Primary: Lower ratio = more fair
-          if (Math.abs(aRatio - bRatio) > 0.001) {
-            return aRatio - bRatio;
-          }
-          
-          // Secondary: Fewer total shifts = more fair
-          if (workerShiftCount[a] !== workerShiftCount[b]) {
-            return workerShiftCount[a] - workerShiftCount[b];
-          }
-          
-          // Tertiary: More availability = more fair
-          return workerAvailability[b] - workerAvailability[a];
+    // Step 4: Multi-pass assignment for better distribution
+    const maxIterations = 3;
+    
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      // Reset shift counts for each iteration
+      if (iteration > 0) {
+        Object.keys(workerShiftCount).forEach(worker => {
+          workerShiftCount[worker] = 0;
         });
-
-        const assignedWorkers = sortedWorkers.slice(0, assignedCount);
-        
-        // Update shift counts
-        assignedWorkers.forEach(worker => {
-          workerShiftCount[worker]++;
-        });
-
-        newShifts.push({
-          day: shift.day,
-          timeSlot: shift.timeSlot,
-          members: assignedWorkers
-        });
+        newShifts.length = 0; // Clear previous assignments
       }
-    });
+      
+      allShifts.forEach(shift => {
+        const exactWorkers = isDayShift(shift.timeSlot) ? dayShiftWorkers : nightShiftWorkers;
+        const assignedCount = Math.min(exactWorkers, shift.availableWorkers.length);
+        
+        if (assignedCount > 0) {
+          // Filter workers who haven't reached their limit
+          const eligibleWorkers = shift.availableWorkers.filter(worker => 
+            workerShiftCount[worker] < maxShiftsPerEmployee
+          );
+          
+          if (eligibleWorkers.length > 0) {
+            // Sort eligible workers by fairness score with more aggressive balancing
+            const sortedWorkers = eligibleWorkers.sort((a, b) => {
+              const aRatio = workerShiftCount[a] / Math.max(workerAvailability[a], 1);
+              const bRatio = workerShiftCount[b] / Math.max(workerAvailability[b], 1);
+              
+              // Primary: Lower ratio = more fair
+              if (Math.abs(aRatio - bRatio) > 0.0001) {
+                return aRatio - bRatio;
+              }
+              
+              // Secondary: Fewer total shifts = more fair
+              if (workerShiftCount[a] !== workerShiftCount[b]) {
+                return workerShiftCount[a] - workerShiftCount[b];
+              }
+              
+              // Tertiary: More availability = more fair
+              return workerAvailability[b] - workerAvailability[a];
+            });
+
+            const assignedWorkers = sortedWorkers.slice(0, Math.min(assignedCount, eligibleWorkers.length));
+            
+            // Update shift counts
+            assignedWorkers.forEach(worker => {
+              workerShiftCount[worker]++;
+            });
+
+            newShifts.push({
+              day: shift.day,
+              timeSlot: shift.timeSlot,
+              members: assignedWorkers
+            });
+          }
+        }
+      });
+      
+      // Check if distribution is good enough (all workers within 1 shift of each other)
+      const shiftCounts = Object.values(workerShiftCount).filter(count => count > 0);
+      if (shiftCounts.length > 0) {
+        const minShifts = Math.min(...shiftCounts);
+        const maxShifts = Math.max(...shiftCounts);
+        if (maxShifts - minShifts <= 1) {
+          break; // Good enough distribution achieved
+        }
+      }
+    }
 
     setShifts(newShifts);
   };
