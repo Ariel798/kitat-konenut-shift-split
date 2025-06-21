@@ -345,7 +345,7 @@ const ShiftScheduler = () => {
     });
 
     // Step 4: Multi-pass assignment for better distribution
-    const maxIterations = 3;
+    const maxIterations = 5; // Increased from 3 to 5
     
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       // Reset shift counts for each iteration
@@ -369,17 +369,16 @@ const ShiftScheduler = () => {
           if (eligibleWorkers.length > 0) {
             // Sort eligible workers by fairness score with more aggressive balancing
             const sortedWorkers = eligibleWorkers.sort((a, b) => {
-              const aRatio = workerShiftCount[a] / Math.max(workerAvailability[a], 1);
-              const bRatio = workerShiftCount[b] / Math.max(workerAvailability[b], 1);
-              
-              // Primary: Lower ratio = more fair
-              if (Math.abs(aRatio - bRatio) > 0.0001) {
-                return aRatio - bRatio;
-              }
-              
-              // Secondary: Fewer total shifts = more fair
+              // Primary: Fewer total shifts = higher priority (more aggressive)
               if (workerShiftCount[a] !== workerShiftCount[b]) {
                 return workerShiftCount[a] - workerShiftCount[b];
+              }
+              
+              // Secondary: Lower ratio = more fair
+              const aRatio = workerShiftCount[a] / Math.max(workerAvailability[a], 1);
+              const bRatio = workerShiftCount[b] / Math.max(workerAvailability[b], 1);
+              if (Math.abs(aRatio - bRatio) > 0.00001) {
+                return aRatio - bRatio;
               }
               
               // Tertiary: More availability = more fair
@@ -407,7 +406,10 @@ const ShiftScheduler = () => {
       if (shiftCounts.length > 0) {
         const minShifts = Math.min(...shiftCounts);
         const maxShifts = Math.max(...shiftCounts);
-        if (maxShifts - minShifts <= 1) {
+        const range = maxShifts - minShifts;
+        
+        // More strict termination condition
+        if (range <= 1 || (range <= 2 && iteration >= 2)) {
           break; // Good enough distribution achieved
         }
       }
