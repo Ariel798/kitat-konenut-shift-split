@@ -285,6 +285,12 @@ const ShiftScheduler = () => {
     });
   };
 
+  // Initialize form when opened
+  const openAddForm = () => {
+    setNewMemberAvailableShifts(initializeAvailableShifts());
+    setShowAddForm(true);
+  };
+
   const generateShifts = () => {
     const newShifts: Shift[] = [];
     
@@ -539,7 +545,7 @@ const ShiftScheduler = () => {
                 <Users className="w-5 h-5" />
                 חברי הצוות ({teamMembers.length})
               </span>
-              <Button onClick={() => setShowAddForm(!showAddForm)} className="flex items-center gap-2">
+              <Button onClick={openAddForm} className="flex items-center gap-2">
                 <Plus className="w-4 h-4" />
                 הוסף חבר צוות
               </Button>
