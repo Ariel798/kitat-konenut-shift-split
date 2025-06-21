@@ -184,8 +184,8 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-3 py-1 font-mono">v1.0.3</span>
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">מערכת חלוקת משמרות</h1>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v1.0.3</span>
+          <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
             כיתת כוננות
