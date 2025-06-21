@@ -445,7 +445,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.1.1</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.3.0</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
@@ -497,8 +497,20 @@ const ShiftScheduler = () => {
                   pattern="[0-9]*"
                   value={dayShiftWorkers}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value.replace(/\D/g, ''));
-                    setDayShiftWorkers(Math.max(1, value || 1));
+                    const value = e.target.value.replace(/\D/g, '');
+                    if (value === '') {
+                      setDayShiftWorkers(1);
+                    } else {
+                      const numValue = parseInt(value);
+                      if (numValue >= 1) {
+                        setDayShiftWorkers(numValue);
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                      setDayShiftWorkers(1);
+                    }
                   }}
                   className="w-full"
                 />
@@ -512,8 +524,20 @@ const ShiftScheduler = () => {
                   pattern="[0-9]*"
                   value={nightShiftWorkers}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value.replace(/\D/g, ''));
-                    setNightShiftWorkers(Math.max(1, value || 1));
+                    const value = e.target.value.replace(/\D/g, '');
+                    if (value === '') {
+                      setNightShiftWorkers(1);
+                    } else {
+                      const numValue = parseInt(value);
+                      if (numValue >= 1) {
+                        setNightShiftWorkers(numValue);
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                      setNightShiftWorkers(1);
+                    }
                   }}
                   className="w-full"
                 />
@@ -527,8 +551,20 @@ const ShiftScheduler = () => {
                   pattern="[0-9]*"
                   value={maxShiftsPerEmployee}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value.replace(/\D/g, ''));
-                    setMaxShiftsPerEmployee(Math.max(1, value || 1));
+                    const value = e.target.value.replace(/\D/g, '');
+                    if (value === '') {
+                      setMaxShiftsPerEmployee(1);
+                    } else {
+                      const numValue = parseInt(value);
+                      if (numValue >= 1) {
+                        setMaxShiftsPerEmployee(numValue);
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                      setMaxShiftsPerEmployee(1);
+                    }
                   }}
                   className="w-full"
                 />
