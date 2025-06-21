@@ -11,7 +11,7 @@ import { he } from 'date-fns/locale';
 interface TeamMember {
   id: string;
   name: string;
-  unavailableShifts: Record<number, string[]>; // day of week -> array of unavailable shift types
+  availableShifts: Record<number, string[]>; // day of week -> array of available shift types
 }
 
 interface Shift {
@@ -57,7 +57,7 @@ const ShiftScheduler = () => {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberUnavailableShifts, setNewMemberUnavailableShifts] = useState<Record<number, string[]>>({});
+  const [newMemberAvailableShifts, setNewMemberAvailableShifts] = useState<Record<number, string[]>>({});
   const [minDayWorkers, setMinDayWorkers] = useState(1);
   const [minNightWorkers, setMinNightWorkers] = useState(1);
   const [maxShiftsPerEmployee, setMaxShiftsPerEmployee] = useState(10);
@@ -66,16 +66,25 @@ const ShiftScheduler = () => {
 
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
 
+  // Initialize all shifts as available for new member
+  const initializeAvailableShifts = () => {
+    const allAvailable: Record<number, string[]> = {};
+    for (let day = 0; day < 7; day++) {
+      allAvailable[day] = ['morning', 'day', 'night'];
+    }
+    return allAvailable;
+  };
+
   const addTeamMember = () => {
     if (newMemberName.trim()) {
       const newMember: TeamMember = {
         id: Date.now().toString(),
         name: newMemberName.trim(),
-        unavailableShifts: { ...newMemberUnavailableShifts }
+        availableShifts: { ...newMemberAvailableShifts }
       };
       setTeamMembers([...teamMembers, newMember]);
       setNewMemberName('');
-      setNewMemberUnavailableShifts({});
+      setNewMemberAvailableShifts(initializeAvailableShifts());
       setShowAddForm(false);
     }
   };
@@ -84,23 +93,23 @@ const ShiftScheduler = () => {
     setTeamMembers(teamMembers.filter(member => member.id !== id));
   };
 
-  const toggleUnavailableShift = (dayIndex: number, shiftCategory: string) => {
-    setNewMemberUnavailableShifts(prev => {
-      const dayUnavailable = prev[dayIndex] || [];
-      const isCurrentlyUnavailable = dayUnavailable.includes(shiftCategory);
+  const toggleAvailableShift = (dayIndex: number, shiftCategory: string) => {
+    setNewMemberAvailableShifts(prev => {
+      const dayAvailable = prev[dayIndex] || [];
+      const isCurrentlyAvailable = dayAvailable.includes(shiftCategory);
       
-      if (isCurrentlyUnavailable) {
-        // Remove from unavailable
-        const newDayUnavailable = dayUnavailable.filter(s => s !== shiftCategory);
-        if (newDayUnavailable.length === 0) {
+      if (isCurrentlyAvailable) {
+        // Remove from available
+        const newDayAvailable = dayAvailable.filter(s => s !== shiftCategory);
+        if (newDayAvailable.length === 0) {
           const { [dayIndex]: _, ...rest } = prev;
           return rest;
         } else {
-          return { ...prev, [dayIndex]: newDayUnavailable };
+          return { ...prev, [dayIndex]: newDayAvailable };
         }
       } else {
-        // Add to unavailable
-        return { ...prev, [dayIndex]: [...dayUnavailable, shiftCategory] };
+        // Add to available
+        return { ...prev, [dayIndex]: [...dayAvailable, shiftCategory] };
       }
     });
   };
@@ -120,8 +129,8 @@ const ShiftScheduler = () => {
       for (const timeSlot of TIME_SLOTS) {
         const shiftCategory = getShiftCategory(timeSlot);
         const availableMembers = teamMembers.filter(member => {
-          const dayUnavailable = member.unavailableShifts[day] || [];
-          return !dayUnavailable.includes(shiftCategory) &&
+          const dayAvailable = member.availableShifts[day] || [];
+          return dayAvailable.includes(shiftCategory) &&
             memberDayShifts[member.name][day] < 2 &&
             memberTotalShifts[member.name] < maxShiftsPerEmployee;
         });
@@ -293,7 +302,7 @@ const ShiftScheduler = () => {
                     />
                   </div>
                   <div>
-                    <Label>בחר משמרות בהן לא זמין (לפי יום ומשמרת):</Label>
+                    <Label>בחר משמרות בהן זמין (לפי יום ומשמרת):</Label>
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full border-collapse border border-gray-300">
                         <thead>
@@ -313,8 +322,8 @@ const ShiftScheduler = () => {
                               {(['morning', 'day', 'night'] as const).map((shiftType) => (
                                 <td key={shiftType} className="border border-gray-300 p-2 text-center">
                                   <Checkbox
-                                    checked={(newMemberUnavailableShifts[dayIndex] || []).includes(shiftType)}
-                                    onCheckedChange={() => toggleUnavailableShift(dayIndex, shiftType)}
+                                    checked={(newMemberAvailableShifts[dayIndex] || []).includes(shiftType)}
+                                    onCheckedChange={() => toggleAvailableShift(dayIndex, shiftType)}
                                   />
                                 </td>
                               ))}
@@ -322,7 +331,7 @@ const ShiftScheduler = () => {
                           ))}
                         </tbody>
                       </table>
-                      <p className="text-xs text-gray-500 mt-2">סמן משמרות בהן העובד לא זמין</p>
+                      <p className="text-xs text-gray-500 mt-2">סמן משמרות בהן העובד זמין</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -346,10 +355,10 @@ const ShiftScheduler = () => {
                   <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex-1">
                       <h3 className="font-medium">{member.name}</h3>
-                      {Object.keys(member.unavailableShifts).length > 0 && (
+                      {Object.keys(member.availableShifts).length > 0 && (
                         <div className="text-sm text-gray-600 mt-1">
-                          <span>לא זמין: </span>
-                          {Object.entries(member.unavailableShifts).map(([day, shifts]) => (
+                          <span>זמין: </span>
+                          {Object.entries(member.availableShifts).map(([day, shifts]) => (
                             <span key={day} className="mr-2">
                               {DAYS_OF_WEEK[parseInt(day)]}: {shifts.map(shift => SHIFT_CATEGORY_NAMES[shift as keyof typeof SHIFT_CATEGORY_NAMES]).join(', ')}
                             </span>
