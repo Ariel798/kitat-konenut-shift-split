@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar, Plus, Trash2, Users, Clock, Settings } from 'lucide-react';
+import { Calendar, Plus, Trash2, Users, Clock, Settings, Edit3, Check, X } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 
@@ -45,6 +45,10 @@ const ShiftScheduler = () => {
   const [dayShiftWorkersInput, setDayShiftWorkersInput] = useState('1');
   const [nightShiftWorkersInput, setNightShiftWorkersInput] = useState('1');
   const [maxShiftsPerEmployeeInput, setMaxShiftsPerEmployeeInput] = useState('10');
+
+  // Editing states
+  const [editingShift, setEditingShift] = useState<{day: number, timeSlot: string} | null>(null);
+  const [editValue, setEditValue] = useState('');
 
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
 
@@ -419,6 +423,62 @@ const ShiftScheduler = () => {
     return summary;
   };
 
+  // Editing functions
+  const startEdit = (day: number, timeSlot: string) => {
+    const shift = shifts.find(s => s.day === day && s.timeSlot === timeSlot);
+    setEditingShift({ day, timeSlot });
+    setEditValue(shift ? shift.members.join(', ') : '');
+  };
+
+  const saveEdit = () => {
+    if (!editingShift) return;
+
+    const { day, timeSlot } = editingShift;
+    const memberNames = editValue.split(',').map(name => name.trim()).filter(name => name.length > 0);
+    
+    // Validate that all names exist in team members
+    const validNames = memberNames.filter(name => 
+      teamMembers.some(member => member.name === name)
+    );
+
+    // Update shifts
+    setShifts(prevShifts => {
+      const existingShiftIndex = prevShifts.findIndex(s => s.day === day && s.timeSlot === timeSlot);
+      
+      if (existingShiftIndex >= 0) {
+        // Update existing shift
+        const updatedShifts = [...prevShifts];
+        updatedShifts[existingShiftIndex] = {
+          ...updatedShifts[existingShiftIndex],
+          members: validNames
+        };
+        return updatedShifts;
+      } else {
+        // Add new shift
+        return [...prevShifts, { day, timeSlot, members: validNames }];
+      }
+    });
+
+    setEditingShift(null);
+    setEditValue('');
+  };
+
+  const cancelEdit = () => {
+    setEditingShift(null);
+    setEditValue('');
+  };
+
+  const handleEditKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveEdit();
+    } else if (e.key === 'Escape') {
+      cancelEdit();
+    }
+  };
+
+  // Get all worker names for datalist
+  const workerNames = teamMembers.map(member => member.name);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" dir="rtl">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -676,6 +736,13 @@ const ShiftScheduler = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Datalist for worker names */}
+              <datalist id="worker-names">
+                {workerNames.map(name => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+              
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
@@ -699,21 +766,74 @@ const ShiftScheduler = () => {
                         </td>
                         {DAYS_OF_WEEK.map((_, dayIndex) => {
                           const shift = shifts.find(s => s.day === dayIndex && s.timeSlot === timeSlot);
+                          const isEditing = editingShift?.day === dayIndex && editingShift?.timeSlot === timeSlot;
+                          
                           return (
                             <td key={dayIndex} className="p-2 text-center">
-                              {shift ? (
-                                <div className="space-y-1">
-                                  {shift.members.map((member, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium"
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <Input
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onKeyDown={handleEditKeyPress}
+                                    list="worker-names"
+                                    placeholder="הכנס שמות עובדים..."
+                                    className="text-xs"
+                                    autoFocus
+                                  />
+                                  <div className="flex gap-1 justify-center">
+                                    <Button
+                                      size="sm"
+                                      onClick={saveEdit}
+                                      className="h-6 px-2 bg-green-600 hover:bg-green-700"
                                     >
-                                      {member}
-                                    </div>
-                                  ))}
+                                      <Check className="w-3 h-3" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={cancelEdit}
+                                      className="h-6 px-2"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </Button>
+                                  </div>
                                 </div>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <div className="space-y-1">
+                                  {shift ? (
+                                    <>
+                                      {shift.members.map((member, idx) => (
+                                        <div
+                                          key={idx}
+                                          className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium"
+                                        >
+                                          {member}
+                                        </div>
+                                      ))}
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => startEdit(dayIndex, timeSlot)}
+                                        className="h-6 px-1 text-gray-500 hover:text-gray-700"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <span className="text-gray-400 text-xs">-</span>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => startEdit(dayIndex, timeSlot)}
+                                        className="h-6 px-1 text-gray-500 hover:text-gray-700"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </td>
                           );
@@ -722,6 +842,10 @@ const ShiftScheduler = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="mt-4 text-sm text-gray-600 text-center">
+                <p>לחץ על כפתור העריכה כדי לשנות את הקצאת העובדים למשמרת</p>
+                <p>הכנס שמות עובדים מופרדים בפסיקים ולחץ Enter לשמירה</p>
               </div>
             </CardContent>
           </Card>
