@@ -11,7 +11,7 @@ import { he } from 'date-fns/locale';
 interface TeamMember {
   id: string;
   name: string;
-  availableShifts: Record<number, string[]>; // day of week -> array of available shift types
+  availableShifts: Record<number, string[]>; // day of week -> array of available time slots
 }
 
 interface Shift {
@@ -23,30 +23,7 @@ interface Shift {
 const DAYS_OF_WEEK = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const TIME_SLOTS = ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'];
 
-// Define shift categories
-const SHIFT_CATEGORIES = {
-  morning: ['06:00-10:00', '10:00-14:00'],
-  day: ['14:00-18:00', '18:00-22:00'],
-  night: ['22:00-02:00', '02:00-06:00']
-};
-
-const SHIFT_CATEGORY_NAMES = {
-  morning: 'בוקר',
-  day: 'יום',
-  night: 'לילה'
-};
-
-// Helper function to get shift category for a time slot
-const getShiftCategory = (timeSlot: string): string => {
-  for (const [category, slots] of Object.entries(SHIFT_CATEGORIES)) {
-    if (slots.includes(timeSlot)) {
-      return category;
-    }
-  }
-  return 'day'; // default
-};
-
-// Helper function to determine if a time slot is day ornpm run night
+// Helper function to determine if a time slot is day or night
 const isDayShift = (timeSlot: string) => {
   return ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'].includes(timeSlot);
 };
@@ -75,169 +52,169 @@ const ShiftScheduler = () => {
   const initializeAvailableShifts = () => {
     const allAvailable: Record<number, string[]> = {};
     for (let day = 0; day < 7; day++) {
-      allAvailable[day] = ['morning', 'day', 'night'];
+      allAvailable[day] = [...TIME_SLOTS];
     }
     return allAvailable;
   };
 
-  // Development preset workers data
+  // Development preset workers data - updated to use specific time slots
   const presetWorkers = [
     {
       name: 'אריאל',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        3: ['night', 'day', 'morning'], // רביעי
-        4: ['night', 'day', 'morning'], // חמישי
-        5: ['night', 'day', 'morning'], // שישי
-        6: ['night', 'day', 'morning']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        3: ['22:00-02:00', '02:00-06:00', '14:00-18:00', '18:00-22:00', '06:00-10:00', '10:00-14:00'], // רביעי
+        4: ['22:00-02:00', '02:00-06:00', '14:00-18:00', '18:00-22:00', '06:00-10:00', '10:00-14:00'], // חמישי
+        5: ['22:00-02:00', '02:00-06:00', '14:00-18:00', '18:00-22:00', '06:00-10:00', '10:00-14:00'], // שישי
+        6: ['22:00-02:00', '02:00-06:00', '14:00-18:00', '18:00-22:00', '06:00-10:00', '10:00-14:00']  // שבת
       }
     },
     {
       name: 'בניטה',
       availability: {
-        0: ['night', 'day', 'morning'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        4: ['morning', 'day', 'night']  // חמישי
+        0: ['22:00-02:00', '02:00-06:00', '14:00-18:00', '18:00-22:00', '06:00-10:00', '10:00-14:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // חמישי
       }
     },
     {
       name: 'איתמר',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'טל',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'אורי',
       availability: {
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'אורן',
       availability: {
-        0: ['morning', 'day'], // ראשון
-        1: ['morning', 'day'], // שני
-        2: ['morning', 'day'], // שלישי
-        3: ['morning', 'day'], // רביעי
-        4: ['morning', 'day'], // חמישי
-        5: ['morning', 'day'], // שישי
-        6: ['morning', 'day']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00']  // שבת
       }
     },
     {
       name: 'אלירן',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'אפי',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'איציק דניאל',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'ליעוז',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'שמוליק',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'אושרי',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        5: ['morning', 'day', 'night'], // שישי
-        6: ['morning', 'day', 'night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        5: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שישי
+        6: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'עידו',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['day', 'night', 'morning'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'day', 'night'], // רביעי
-        4: ['morning', 'day', 'night'], // חמישי
-        6: ['night']  // שבת
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00', '06:00-10:00', '10:00-14:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // חמישי
+        6: ['22:00-02:00', '02:00-06:00']  // שבת
       }
     },
     {
       name: 'גיל',
       availability: {
-        0: ['morning', 'day', 'night'], // ראשון
-        1: ['morning', 'day', 'night'], // שני
-        2: ['morning', 'day', 'night'], // שלישי
-        3: ['morning', 'night'], // רביעי
-        4: ['morning', 'day', 'night']  // חמישי
+        0: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // ראשון
+        1: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שני
+        2: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'], // שלישי
+        3: ['06:00-10:00', '10:00-14:00', '22:00-02:00', '02:00-06:00'], // רביעי
+        4: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00']  // חמישי
       }
     }
   ];
@@ -269,14 +246,14 @@ const ShiftScheduler = () => {
     setTeamMembers(teamMembers.filter(member => member.id !== id));
   };
 
-  const toggleAvailableShift = (dayIndex: number, shiftCategory: string) => {
+  const toggleAvailableShift = (dayIndex: number, timeSlot: string) => {
     setNewMemberAvailableShifts(prev => {
       const dayAvailable = prev[dayIndex] || [];
-      const isCurrentlyAvailable = dayAvailable.includes(shiftCategory);
+      const isCurrentlyAvailable = dayAvailable.includes(timeSlot);
       
       if (isCurrentlyAvailable) {
         // Remove from available
-        const newDayAvailable = dayAvailable.filter(s => s !== shiftCategory);
+        const newDayAvailable = dayAvailable.filter(s => s !== timeSlot);
         if (newDayAvailable.length === 0) {
           const { [dayIndex]: _, ...rest } = prev;
           return rest;
@@ -285,7 +262,7 @@ const ShiftScheduler = () => {
         }
       } else {
         // Add to available
-        return { ...prev, [dayIndex]: [...dayAvailable, shiftCategory] };
+        return { ...prev, [dayIndex]: [...dayAvailable, timeSlot] };
       }
     });
   };
@@ -310,9 +287,8 @@ const ShiftScheduler = () => {
       // Count total available shifts for this worker
       for (let day = 0; day < 7; day++) {
         for (const timeSlot of TIME_SLOTS) {
-          const shiftCategory = getShiftCategory(timeSlot);
           const dayAvailable = member.availableShifts[day] || [];
-          if (dayAvailable.includes(shiftCategory)) {
+          if (dayAvailable.includes(timeSlot)) {
             workerAvailability[member.name]++;
           }
         }
@@ -320,21 +296,19 @@ const ShiftScheduler = () => {
     });
 
     // Step 2: Create all possible shifts first
-    const allShifts: Array<{day: number, timeSlot: string, shiftCategory: string, availableWorkers: string[]}> = [];
+    const allShifts: Array<{day: number, timeSlot: string, availableWorkers: string[]}> = [];
     
     for (let day = 0; day < 7; day++) {
       for (const timeSlot of TIME_SLOTS) {
-        const shiftCategory = getShiftCategory(timeSlot);
         const availableWorkers = teamMembers.filter(member => {
           const dayAvailable = member.availableShifts[day] || [];
-          return dayAvailable.includes(shiftCategory);
+          return dayAvailable.includes(timeSlot);
         }).map(m => m.name);
         
         if (availableWorkers.length > 0) {
           allShifts.push({
             day,
             timeSlot,
-            shiftCategory,
             availableWorkers
           });
         }
@@ -450,7 +424,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.3.0</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.4.0</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
@@ -595,15 +569,18 @@ const ShiftScheduler = () => {
                     />
                   </div>
                   <div>
-                    <Label>בחר משמרות בהן זמין (לפי יום ומשמרת):</Label>
+                    <Label>בחר משמרות בהן זמין (לפי יום ושעות):</Label>
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full border-collapse border border-gray-300">
                         <thead>
                           <tr className="bg-gray-100">
                             <th className="border border-gray-300 p-2 text-sm font-medium">יום</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">בוקר<br/>(06:00-14:00)</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">יום<br/>(14:00-22:00)</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">לילה<br/>(22:00-06:00)</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">06:00-10:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">10:00-14:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">14:00-18:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">18:00-22:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">22:00-02:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">02:00-06:00</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -612,11 +589,11 @@ const ShiftScheduler = () => {
                               <td className="border border-gray-300 p-2 text-sm font-medium bg-gray-50">
                                 {dayName}
                               </td>
-                              {(['morning', 'day', 'night'] as const).map((shiftType) => (
-                                <td key={shiftType} className="border border-gray-300 p-2 text-center">
+                              {TIME_SLOTS.map((timeSlot) => (
+                                <td key={timeSlot} className="border border-gray-300 p-2 text-center">
                                   <Checkbox
-                                    checked={(newMemberAvailableShifts[dayIndex] || []).includes(shiftType)}
-                                    onCheckedChange={() => toggleAvailableShift(dayIndex, shiftType)}
+                                    checked={(newMemberAvailableShifts[dayIndex] || []).includes(timeSlot)}
+                                    onCheckedChange={() => toggleAvailableShift(dayIndex, timeSlot)}
                                   />
                                 </td>
                               ))}
@@ -653,7 +630,7 @@ const ShiftScheduler = () => {
                           <span>זמין: </span>
                           {Object.entries(member.availableShifts).map(([day, shifts]) => (
                             <span key={day} className="mr-2">
-                              {DAYS_OF_WEEK[parseInt(day)]}: {shifts.map(shift => SHIFT_CATEGORY_NAMES[shift as keyof typeof SHIFT_CATEGORY_NAMES]).join(', ')}
+                              {DAYS_OF_WEEK[parseInt(day)]}: {shifts.join(', ')}
                             </span>
                           ))}
                         </div>
