@@ -484,7 +484,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.4.0</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.5.0</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
@@ -574,7 +574,7 @@ const ShiftScheduler = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="max-shifts-per-employee">מקסימום משמרות לעובד בשבוע</Label>
+                <Label htmlFor="max-shifts-per-employee">מקסימום משמרות בשבוע</Label>
                 <Input
                   id="max-shifts-per-employee"
                   type="text"
@@ -661,7 +661,7 @@ const ShiftScheduler = () => {
                           ))}
                         </tbody>
                       </table>
-                      <p className="text-xs text-gray-500 mt-2">סמן משמרות בהן העובד זמין</p>
+                      <p className="text-xs text-gray-500 mt-2">סמן משמרות בהן זמין</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -777,7 +777,7 @@ const ShiftScheduler = () => {
                                     onChange={(e) => setEditValue(e.target.value)}
                                     onKeyDown={handleEditKeyPress}
                                     list="worker-names"
-                                    placeholder="הכנס שמות עובדים..."
+                                    placeholder="הכנס שמוים..."
                                     className="text-xs"
                                     autoFocus
                                   />
@@ -844,8 +844,8 @@ const ShiftScheduler = () => {
                 </table>
               </div>
               <div className="mt-4 text-sm text-gray-600 text-center">
-                <p>לחץ על כפתור העריכה כדי לשנות את הקצאת העובדים למשמרת</p>
-                <p>הכנס שמות עובדים מופרדים בפסיקים ולחץ Enter לשמירה</p>
+                <p>לחץ על כפתור העריכה כדי לשנות את הקצאתים למשמרת</p>
+                <p>הכנס שמוים מופרדים בפסיקים ולחץ Enter לשמירה</p>
               </div>
             </CardContent>
           </Card>
@@ -857,7 +857,7 @@ const ShiftScheduler = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                סיכום משמרות לעובד
+                סיכום משמרות
               </CardTitle>
             </CardHeader>
             <CardContent>
