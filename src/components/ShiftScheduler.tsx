@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,7 +60,95 @@ const ShiftScheduler = () => {
   const [editingShift, setEditingShift] = useState<{day: number, timeSlot: string} | null>(null);
   const [editValue, setEditValue] = useState('');
 
+  // Worker availability viewer states
+  const [showAvailabilityViewer, setShowAvailabilityViewer] = useState(false);
+  const [selectedWorkerForView, setSelectedWorkerForView] = useState<string>('');
+
+  // Ref for smooth scrolling to availability viewer
+  const availabilityViewerRef = React.useRef<HTMLDivElement>(null);
+
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
+
+  // localStorage functions for worker names
+  const saveWorkerNamesToStorage = (names: string[]) => {
+    try {
+      localStorage.setItem('shiftScheduler_workerNames', JSON.stringify(names));
+    } catch (error) {
+      console.error('Failed to save worker names to localStorage:', error);
+    }
+  };
+
+  const loadWorkerNamesFromStorage = (): string[] => {
+    try {
+      const saved = localStorage.getItem('shiftScheduler_workerNames');
+      return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+      console.error('Failed to load worker names from localStorage:', error);
+      return [];
+    }
+  };
+
+  // localStorage functions for shift settings
+  const saveShiftSettingsToStorage = (settings: {
+    dayShiftWorkers: number;
+    nightShiftWorkers: number;
+    maxShiftsPerEmployee: number;
+  }) => {
+    try {
+      localStorage.setItem('shiftScheduler_settings', JSON.stringify(settings));
+    } catch (error) {
+      console.error('Failed to save shift settings to localStorage:', error);
+    }
+  };
+
+  const loadShiftSettingsFromStorage = () => {
+    try {
+      const saved = localStorage.getItem('shiftScheduler_settings');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        setDayShiftWorkers(settings.dayShiftWorkers || 1);
+        setNightShiftWorkers(settings.nightShiftWorkers || 1);
+        setMaxShiftsPerEmployee(settings.maxShiftsPerEmployee || 10);
+        setDayShiftWorkersInput((settings.dayShiftWorkers || 1).toString());
+        setNightShiftWorkersInput((settings.nightShiftWorkers || 1).toString());
+        setMaxShiftsPerEmployeeInput((settings.maxShiftsPerEmployee || 10).toString());
+      }
+    } catch (error) {
+      console.error('Failed to load shift settings from localStorage:', error);
+    }
+  };
+
+  // Load saved worker names on component mount
+  useEffect(() => {
+    const savedNames = loadWorkerNamesFromStorage();
+    if (savedNames.length > 0) {
+      // Create team members with full availability for saved names
+      const savedMembers: TeamMember[] = savedNames.map(name => ({
+        id: `saved-${Date.now()}-${Math.random()}`,
+        name,
+        availableShifts: initializeAvailableShifts()
+      }));
+      setTeamMembers(savedMembers);
+    }
+    
+    // Load saved shift settings
+    loadShiftSettingsFromStorage();
+  }, []);
+
+  // Save worker names whenever team members change
+  useEffect(() => {
+    const names = teamMembers.map(member => member.name);
+    saveWorkerNamesToStorage(names);
+  }, [teamMembers]);
+
+  // Save shift settings whenever they change
+  useEffect(() => {
+    saveShiftSettingsToStorage({
+      dayShiftWorkers,
+      nightShiftWorkers,
+      maxShiftsPerEmployee
+    });
+  }, [dayShiftWorkers, nightShiftWorkers, maxShiftsPerEmployee]);
 
   // Initialize all shifts as available for new member
   const initializeAvailableShifts = () => {
@@ -553,6 +641,34 @@ const ShiftScheduler = () => {
     setTimeout(() => setShowSuggestions(false), 200);
   };
 
+  // Worker availability viewer functions
+  const openAvailabilityViewer = () => {
+    setShowAvailabilityViewer(true);
+  };
+
+  const closeAvailabilityViewer = () => {
+    setShowAvailabilityViewer(false);
+    setSelectedWorkerForView('');
+  };
+
+  const viewWorkerAvailability = (workerName: string) => {
+    setSelectedWorkerForView(workerName);
+    setShowAvailabilityViewer(true);
+    
+    // Smooth scroll to the availability viewer after a short delay to ensure it's rendered
+    setTimeout(() => {
+      availabilityViewerRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 100);
+  };
+
+  const getWorkerAvailability = (workerName: string) => {
+    const worker = teamMembers.find(member => member.name === workerName);
+    return worker ? worker.availableShifts : {};
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" dir="rtl">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -770,20 +886,114 @@ const ShiftScheduler = () => {
                         </div>
                       )}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeTeamMember(member.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => viewWorkerAvailability(member.name)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        צפה בזמינות
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeTeamMember(member.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))
               )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Worker Availability Viewer */}
+        {showAvailabilityViewer && (
+          <Card className="shadow-lg border-2 border-blue-200" ref={availabilityViewerRef}>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  צפייה בזמינות עובד
+                </span>
+                <Button variant="outline" onClick={closeAvailabilityViewer}>
+                  סגור
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {selectedWorkerForView ? (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h3 className="text-xl font-bold text-gray-800">{selectedWorkerForView}</h3>
+                    <p className="text-gray-600">לוח זמינות</p>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-gray-300 p-2 text-sm font-medium">יום</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">06:00-10:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">10:00-14:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">14:00-18:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">18:00-22:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">22:00-02:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">02:00-06:00</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {DAYS_OF_WEEK.map((dayName, dayIndex) => {
+                          const workerAvailability = getWorkerAvailability(selectedWorkerForView);
+                          const dayAvailable = workerAvailability[dayIndex] || [];
+                          
+                          return (
+                            <tr key={dayIndex}>
+                              <td className="border border-gray-300 p-2 text-sm font-medium bg-gray-50">
+                                {dayName}
+                              </td>
+                              {TIME_SLOTS.map((timeSlot) => {
+                                const isAvailable = dayAvailable.includes(timeSlot);
+                                return (
+                                  <td key={timeSlot} className="border border-gray-300 p-2 text-center">
+                                    <div className={`w-4 h-4 mx-auto rounded ${
+                                      isAvailable 
+                                        ? 'bg-green-500' 
+                                        : 'bg-red-500'
+                                    }`} title={isAvailable ? 'זמין' : 'לא זמין'} />
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div className="flex gap-4 justify-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span>זמין</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-red-500 rounded"></div>
+                      <span>לא זמין</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">בחר עובד לצפייה בזמינות</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Generate Shifts Button */}
         {teamMembers.length > 0 && (
