@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar, Plus, Trash2, Users, Clock, Settings, Edit3, Check, X } from 'lucide-react';
+import { Calendar, Plus, Trash2, Users, Clock, Settings, Edit3, Check, X, Share2, Link } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 
@@ -133,6 +133,22 @@ const ShiftScheduler = () => {
     
     // Load saved shift settings
     loadShiftSettingsFromStorage();
+    
+    // Check for shared shifts in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedShifts = urlParams.get('shifts');
+    if (sharedShifts) {
+      try {
+        const decodedShifts = decodeShifts(sharedShifts);
+        setShifts(decodedShifts);
+        // Update URL to remove the parameter
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      } catch (error) {
+        console.error('Failed to load shared shifts:', error);
+        alert('שגיאה בטעינת המשמרות המשותפות');
+      }
+    }
   }, []);
 
   // Save worker names whenever team members change
@@ -669,12 +685,75 @@ const ShiftScheduler = () => {
     return worker ? worker.availableShifts : {};
   };
 
+  const encodeShifts = (shifts: Shift[]): string => {
+    return encodeURIComponent(JSON.stringify(shifts));
+  };
+
+  const decodeShifts = (encodedShifts: string): Shift[] => {
+    return JSON.parse(decodeURIComponent(encodedShifts));
+  };
+
+  const shareShifts = () => {
+    if (shifts.length === 0) {
+      alert('אין משמרות לשתף');
+      return;
+    }
+
+    try {
+      const encodedShifts = encodeShifts(shifts);
+      const shareUrl = `${window.location.origin}${window.location.pathname}?shifts=${encodedShifts}`;
+      
+      // Try to copy to clipboard with fallback
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          alert('הקישור ללוח נשמר!');
+        }).catch(err => {
+          console.error('Failed to copy to clipboard:', err);
+          fallbackCopyShareUrl(shareUrl);
+        });
+      } else {
+        fallbackCopyShareUrl(shareUrl);
+      }
+    } catch (error) {
+      console.error('Failed to create share URL:', error);
+      alert('שגיאה ביצירת קישור השיתוף');
+    }
+  };
+
+  const fallbackCopyShareUrl = (shareUrl: string) => {
+    // Create a temporary textarea element
+    const textArea = document.createElement('textarea');
+    textArea.value = shareUrl;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        alert('הקישור נשמר ללוח השבוע!');
+      } else {
+        alert('שגיאה בהעתקה ללוח השבוע. אנא העתק את הקישור ידנית.');
+        console.log('Share URL:', shareUrl);
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      alert('שגיאה בהעתקה ללוח השבוע. אנא העתק את הקישור ידנית.');
+      console.log('Share URL:', shareUrl);
+    }
+    
+    document.body.removeChild(textArea);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" dir="rtl">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.5.0</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.6.0</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
@@ -1140,6 +1219,24 @@ const ShiftScheduler = () => {
                 <p>לחץ על כפתור העריכה כדי לערוך</p>
                 <p>הכנס שמות מופרדים בפסיקים ולחץ Enter לשמירה</p>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Share Shifts Button */}
+        {shifts.length > 0 && (
+          <Card className="shadow-lg">
+            <CardContent className="pt-6">
+              <Button 
+                onClick={shareShifts}
+                className="w-full py-3 text-lg flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <Link className="w-5 h-5" />
+                שתף לוח משמרות בקישור
+              </Button>
+              <p className="text-sm text-gray-600 text-center mt-2">
+                צור קישור שניתן לשלוח לאחרים לצפייה בלוח המשמרות
+              </p>
             </CardContent>
           </Card>
         )}
