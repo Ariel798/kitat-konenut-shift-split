@@ -88,6 +88,25 @@ const ShiftScheduler = () => {
     }
   };
 
+  // localStorage functions for complete team member data
+  const saveTeamMembersToStorage = (members: TeamMember[]) => {
+    try {
+      localStorage.setItem('shiftScheduler_teamMembers', JSON.stringify(members));
+    } catch (error) {
+      console.error('Failed to save team members to localStorage:', error);
+    }
+  };
+
+  const loadTeamMembersFromStorage = (): TeamMember[] => {
+    try {
+      const saved = localStorage.getItem('shiftScheduler_teamMembers');
+      return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+      console.error('Failed to load team members from localStorage:', error);
+      return [];
+    }
+  };
+
   // localStorage functions for shift settings
   const saveShiftSettingsToStorage = (settings: {
     dayShiftWorkers: number;
@@ -120,15 +139,22 @@ const ShiftScheduler = () => {
 
   // Load saved worker names on component mount
   useEffect(() => {
-    const savedNames = loadWorkerNamesFromStorage();
-    if (savedNames.length > 0) {
-      // Create team members with full availability for saved names
-      const savedMembers: TeamMember[] = savedNames.map(name => ({
-        id: `saved-${Date.now()}-${Math.random()}`,
-        name,
-        availableShifts: initializeAvailableShifts()
-      }));
-      setTeamMembers(savedMembers);
+    // Load saved team members with their availability
+    const savedTeamMembers = loadTeamMembersFromStorage();
+    if (savedTeamMembers.length > 0) {
+      setTeamMembers(savedTeamMembers);
+    } else {
+      // Fallback: Load saved worker names (for backward compatibility)
+      const savedNames = loadWorkerNamesFromStorage();
+      if (savedNames.length > 0) {
+        // Create team members with full availability for saved names
+        const savedMembers: TeamMember[] = savedNames.map((name, index) => ({
+          id: `saved-${Date.now()}-${index}`,
+          name,
+          availableShifts: initializeAvailableShifts()
+        }));
+        setTeamMembers(savedMembers);
+      }
     }
     
     // Load saved shift settings
@@ -155,6 +181,11 @@ const ShiftScheduler = () => {
   useEffect(() => {
     const names = teamMembers.map(member => member.name);
     saveWorkerNamesToStorage(names);
+  }, [teamMembers]);
+
+  // Save team members whenever they change
+  useEffect(() => {
+    saveTeamMembersToStorage(teamMembers);
   }, [teamMembers]);
 
   // Save shift settings whenever they change
@@ -753,7 +784,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.6.0</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.7.0</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
