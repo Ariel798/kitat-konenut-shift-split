@@ -908,10 +908,24 @@ const ShiftScheduler = () => {
                 <Users className="w-5 h-5" />
                 חברי הצוות ({teamMembers.length})
               </span>
-              <Button onClick={openAddForm} className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                הוסף חבר צוות
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={openAddForm} className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  הוסף חבר צוות
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 text-red-600 border-red-300 hover:text-white hover:bg-red-600"
+                  onClick={() => {
+                    if (window.confirm('האם אתה בטוח שברצונך למחוק את כל חברי הצוות?')) {
+                      setTeamMembers([]);
+                    }
+                  }}
+                  disabled={teamMembers.length === 0}
+                >
+                  נקה את כל הצוות
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
