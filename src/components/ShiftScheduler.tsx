@@ -29,7 +29,17 @@ const isDayShift = (timeSlot: string) => {
 };
 
 const ShiftScheduler = () => {
-  const [selectedWeek, setSelectedWeek] = useState(format(new Date(), 'yyyy-MM-dd'));
+  // Calculate the current Sunday (or today if it's Sunday)
+  const getCurrentSunday = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysToSubtract = dayOfWeek; // If today is Sunday, subtract 0 days
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() - daysToSubtract);
+    return format(sunday, 'yyyy-MM-dd');
+  };
+
+  const [selectedWeek, setSelectedWeek] = useState(getCurrentSunday());
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
