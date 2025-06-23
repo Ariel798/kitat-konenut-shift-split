@@ -28,6 +28,15 @@ const isDayShift = (timeSlot: string) => {
   return ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'].includes(timeSlot);
 };
 
+// Add new encode/decode functions above ShiftScheduler
+const encodeShareData = (data: { shifts: Shift[], settings: any, teamMembers: TeamMember[], selectedWeek: string }): string => {
+  return encodeURIComponent(JSON.stringify(data));
+};
+
+const decodeShareData = (encoded: string): { shifts: Shift[], settings: any, teamMembers: TeamMember[], selectedWeek: string } => {
+  return JSON.parse(decodeURIComponent(encoded));
+};
+
 const ShiftScheduler = () => {
   // Calculate the current Sunday (or today if it's Sunday)
   const getCurrentSunday = () => {
@@ -160,21 +169,35 @@ const ShiftScheduler = () => {
     // Load saved shift settings
     loadShiftSettingsFromStorage();
     
-    // Check for shared shifts in URL
+    // Check for shared blob in URL (jsonblob.com quick hack)
     const urlParams = new URLSearchParams(window.location.search);
-    const sharedShifts = urlParams.get('shifts');
-    if (sharedShifts) {
-      try {
-        const decodedShifts = decodeShifts(sharedShifts);
-        setShifts(decodedShifts);
-        // Update URL to remove the parameter
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, '', newUrl);
-      } catch (error) {
-        console.error('Failed to load shared shifts:', error);
-        alert('שגיאה בטעינת המשמרות המשותפות');
-      }
+    const blobId = urlParams.get('blob');
+    if (blobId) {
+      fetch(`https://jsonblob.com/api/jsonBlob/${blobId}`)
+        .then(res => res.json())
+        .then(decoded => {
+          setShifts(decoded.shifts);
+          setTeamMembers(decoded.teamMembers);
+          setDayShiftWorkers(decoded.settings.dayShiftWorkers || 1);
+          setNightShiftWorkers(decoded.settings.nightShiftWorkers || 1);
+          setMaxShiftsPerEmployee(decoded.settings.maxShiftsPerEmployee || 10);
+          setDayShiftWorkersInput((decoded.settings.dayShiftWorkers || 1).toString());
+          setNightShiftWorkersInput((decoded.settings.nightShiftWorkers || 1).toString());
+          setMaxShiftsPerEmployeeInput((decoded.settings.maxShiftsPerEmployee || 10).toString());
+          if (decoded.selectedWeek) {
+            setSelectedWeek(decoded.selectedWeek);
+          }
+          // Remove blob param from URL
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        })
+        .catch(error => {
+          console.error('Failed to load shared shifts:', error);
+          alert('שגיאה בטעינת המשמרות המשותפות');
+        });
+      return;
     }
+    // ... existing code for shifts param (if you want to keep backward compatibility) ...
   }, []);
 
   // Save worker names whenever team members change
@@ -724,24 +747,42 @@ const ShiftScheduler = () => {
     return JSON.parse(decodeURIComponent(encodedShifts));
   };
 
-  const shareShifts = () => {
+  const shareShifts = async () => {
     if (shifts.length === 0) {
       alert('אין משמרות לשתף');
       return;
     }
 
     try {
-      const encodedShifts = encodeShifts(shifts);
-      const shareUrl = `${window.location.origin}${window.location.pathname}?shifts=${encodedShifts}`;
-      
-      // Try to copy to clipboard with fallback
+      const shareData = {
+        shifts,
+        settings: {
+          dayShiftWorkers,
+          nightShiftWorkers,
+          maxShiftsPerEmployee
+        },
+        teamMembers,
+        selectedWeek
+      };
+
+      // POST to jsonblob.com
+      const response = await fetch('https://jsonblob.com/api/jsonBlob', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shareData)
+      });
+
+      if (!response.ok) throw new Error('Failed to create blob');
+      const location = response.headers.get('Location'); // e.g. https://jsonblob.com/api/jsonBlob/1234567890
+      const blobId = location?.split('/').pop();
+
+      if (!blobId) throw new Error('No blob ID returned');
+
+      const shareUrl = `${window.location.origin}${window.location.pathname}?blob=${blobId}`;
+
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          alert('הקישור ללוח נשמר!');
-        }).catch(err => {
-          console.error('Failed to copy to clipboard:', err);
-          fallbackCopyShareUrl(shareUrl);
-        });
+        await navigator.clipboard.writeText(shareUrl);
+        alert('הקישור ללוח נשמר!');
       } else {
         fallbackCopyShareUrl(shareUrl);
       }
