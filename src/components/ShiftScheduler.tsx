@@ -451,6 +451,24 @@ const ShiftScheduler = () => {
       teamMembers.some(member => member.name === name)
     );
 
+    // Check if any assigned workers are not available for this shift
+    const unavailableWorkers = validNames.filter(workerName => {
+      const worker = teamMembers.find(member => member.name === workerName);
+      if (!worker) return true;
+      
+      const dayAvailable = worker.availableShifts[day] || [];
+      return !dayAvailable.includes(timeSlot);
+    });
+
+    // Show confirmation if there are unavailable workers
+    if (unavailableWorkers.length > 0) {
+      const confirmMessage = `העובדים הבאים אינם זמינים למשמרת זו (${DAYS_OF_WEEK[day]} ${timeSlot}):\n${unavailableWorkers.join(', ')}\n\nהאם אתה בטוח שברצונך להקצות אותם למשמרת זו?`;
+      
+      if (!confirm(confirmMessage)) {
+        return; // User cancelled
+      }
+    }
+
     // Update shifts
     setShifts(prevShifts => {
       const existingShiftIndex = prevShifts.findIndex(s => s.day === day && s.timeSlot === timeSlot);
@@ -909,8 +927,8 @@ const ShiftScheduler = () => {
                 </table>
               </div>
               <div className="mt-4 text-sm text-gray-600 text-center">
-                <p>לחץ על כפתור העריכה כדי לשנות את הקצאתים למשמרת</p>
-                <p>הכנס שמוים מופרדים בפסיקים ולחץ Enter לשמירה</p>
+                <p>לחץ על כפתור העריכה כדי לערוך</p>
+                <p>הכנס שמות מופרדים בפסיקים ולחץ Enter לשמירה</p>
               </div>
             </CardContent>
           </Card>
