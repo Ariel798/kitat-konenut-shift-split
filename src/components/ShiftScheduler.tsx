@@ -479,6 +479,52 @@ const ShiftScheduler = () => {
   // Get all worker names for datalist
   const workerNames = teamMembers.map(member => member.name);
 
+  // Custom autocomplete for worker names
+  const getAutocompleteSuggestions = (inputValue: string) => {
+    if (!inputValue.trim()) return [];
+    
+    // Get the last word being typed (after the last comma)
+    const parts = inputValue.split(',').map(part => part.trim());
+    const currentWord = parts[parts.length - 1];
+    
+    if (!currentWord) return [];
+    
+    // Filter worker names that start with the current word
+    return workerNames.filter(name => 
+      name.toLowerCase().startsWith(currentWord.toLowerCase()) && 
+      !parts.slice(0, -1).includes(name) // Don't suggest already added names
+    );
+  };
+
+  const handleAutocompleteSelect = (selectedName: string) => {
+    const parts = editValue.split(',').map(part => part.trim());
+    parts[parts.length - 1] = selectedName; // Replace the current word with selected name
+    setEditValue(parts.join(', '));
+  };
+
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEditValue(value);
+    
+    const newSuggestions = getAutocompleteSuggestions(value);
+    setSuggestions(newSuggestions);
+    setShowSuggestions(newSuggestions.length > 0);
+  };
+
+  const handleEditInputFocus = () => {
+    const newSuggestions = getAutocompleteSuggestions(editValue);
+    setSuggestions(newSuggestions);
+    setShowSuggestions(newSuggestions.length > 0);
+  };
+
+  const handleEditInputBlur = () => {
+    // Delay hiding suggestions to allow clicking on them
+    setTimeout(() => setShowSuggestions(false), 200);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" dir="rtl">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -736,13 +782,6 @@ const ShiftScheduler = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Datalist for worker names */}
-              <datalist id="worker-names">
-                {workerNames.map(name => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
-              
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
@@ -772,15 +811,31 @@ const ShiftScheduler = () => {
                             <td key={dayIndex} className="p-2 text-center">
                               {isEditing ? (
                                 <div className="space-y-2">
-                                  <Input
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    onKeyDown={handleEditKeyPress}
-                                    list="worker-names"
-                                    placeholder="הכנס שמוים..."
-                                    className="text-xs"
-                                    autoFocus
-                                  />
+                                  <div className="relative">
+                                    <Input
+                                      value={editValue}
+                                      onChange={handleEditInputChange}
+                                      onKeyDown={handleEditKeyPress}
+                                      onFocus={handleEditInputFocus}
+                                      onBlur={handleEditInputBlur}
+                                      placeholder="הכנס שמוים..."
+                                      className="text-xs"
+                                      autoFocus
+                                    />
+                                    {showSuggestions && (
+                                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                                        {suggestions.map((name) => (
+                                          <div
+                                            key={name}
+                                            className="p-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                            onClick={() => handleAutocompleteSelect(name)}
+                                          >
+                                            {name}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                   <div className="flex gap-1 justify-center">
                                     <Button
                                       size="sm"
