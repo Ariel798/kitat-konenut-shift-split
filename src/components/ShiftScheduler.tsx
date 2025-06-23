@@ -174,7 +174,10 @@ const ShiftScheduler = () => {
     const blobId = urlParams.get('blob');
     if (blobId) {
       fetch(`https://jsonblob.com/api/jsonBlob/${blobId}`)
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error('Network response was not ok');
+          return res.json();
+        })
         .then(decoded => {
           setShifts(decoded.shifts);
           setTeamMembers(decoded.teamMembers);
@@ -193,7 +196,8 @@ const ShiftScheduler = () => {
         })
         .catch(error => {
           console.error('Failed to load shared shifts:', error);
-          alert('שגיאה בטעינת המשמרות המשותפות');
+          setNetworkError('נדרש חיבור לאינטרנט כדי לטעון לוח משמרות משותף.');
+          alert('נדרש חיבור לאינטרנט כדי לטעון לוח משמרות משותף.');
         });
       return;
     }
@@ -747,6 +751,9 @@ const ShiftScheduler = () => {
     return JSON.parse(decodeURIComponent(encodedShifts));
   };
 
+  const [lastShareUrl, setLastShareUrl] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState<string | null>(null);
+
   const shareShifts = async () => {
     if (shifts.length === 0) {
       alert('אין משמרות לשתף');
@@ -773,51 +780,26 @@ const ShiftScheduler = () => {
       });
 
       if (!response.ok) throw new Error('Failed to create blob');
-      const location = response.headers.get('Location'); // e.g. https://jsonblob.com/api/jsonBlob/1234567890
+      const location = response.headers.get('Location');
       const blobId = location?.split('/').pop();
-
       if (!blobId) throw new Error('No blob ID returned');
 
       const shareUrl = `${window.location.origin}${window.location.pathname}?blob=${blobId}`;
+      setLastShareUrl(shareUrl);
 
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-        alert('הקישור ללוח נשמר!');
-      } else {
-        fallbackCopyShareUrl(shareUrl);
+      // Try to copy, but always show the link for manual copy
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+          alert('הקישור ללוח נשמר!');
+        }
+      } catch (err) {
+        // Ignore, just show the link below
       }
     } catch (error) {
-      console.error('Failed to create share URL:', error);
-      alert('שגיאה ביצירת קישור השיתוף');
+      setNetworkError('נדרש חיבור לאינטרנט כדי לשתף לוח משמרות.');
+      alert('נדרש חיבור לאינטרנט כדי לשתף לוח משמרות.');
     }
-  };
-
-  const fallbackCopyShareUrl = (shareUrl: string) => {
-    // Create a temporary textarea element
-    const textArea = document.createElement('textarea');
-    textArea.value = shareUrl;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '-999999px';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    
-    try {
-      const successful = document.execCommand('copy');
-      if (successful) {
-        alert('הקישור ללוח השבוע נשמר בהצלחה!');
-      } else {
-        alert('שגיאה בהעתקה ללוח השבוע. אנא העתק את הקישור ידנית.');
-        console.log('Share URL:', shareUrl);
-      }
-    } catch (err) {
-      console.error('Fallback copy failed:', err);
-      alert('שגיאה בהעתקה ללוח השבוע. אנא העתק את הקישור ידנית.');
-      console.log('Share URL:', shareUrl);
-    }
-    
-    document.body.removeChild(textArea);
   };
 
   return (
@@ -825,7 +807,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.7.0</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.8.0</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
@@ -1323,6 +1305,22 @@ const ShiftScheduler = () => {
               <p className="text-sm text-gray-600 text-center mt-2">
                 צור קישור שניתן לשלוח לאחרים לצפייה בלוח המשמרות
               </p>
+              {networkError && (
+                <div className="mt-4 text-center text-red-600 font-bold">{networkError}</div>
+              )}
+              {lastShareUrl && (
+                <div className="mt-4">
+                  <label className="block mb-1 font-medium">העתק את הקישור:</label>
+                  <input
+                    type="text"
+                    value={lastShareUrl}
+                    readOnly
+                    onFocus={e => e.target.select()}
+                    className="w-full p-2 border rounded"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">אם לא הועתק אוטומטית, העתק ידנית</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
