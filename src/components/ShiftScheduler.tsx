@@ -765,7 +765,7 @@ const ShiftScheduler = () => {
     try {
       const successful = document.execCommand('copy');
       if (successful) {
-        alert('הקישור נשמר ללוח השבוע!');
+        alert('הקישור ללוח השבוע נשמר בהצלחה!');
       } else {
         alert('שגיאה בהעתקה ללוח השבוע. אנא העתק את הקישור ידנית.');
         console.log('Share URL:', shareUrl);
