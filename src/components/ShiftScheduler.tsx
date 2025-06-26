@@ -75,6 +75,8 @@ const ShiftScheduler = () => {
 
   // Ref for smooth scrolling to availability viewer
   const availabilityViewerRef = React.useRef<HTMLDivElement>(null);
+  // Ref for smooth scrolling to shifts table
+  const shiftsTableRef = React.useRef<HTMLDivElement>(null);
 
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
 
@@ -193,6 +195,14 @@ const ShiftScheduler = () => {
           // Remove blob param from URL
           const newUrl = window.location.pathname;
           window.history.replaceState({}, '', newUrl);
+          
+          // Smooth scroll to shifts table after loading shared data
+          setTimeout(() => {
+            shiftsTableRef.current?.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+          }, 500); // Delay to ensure the table is rendered
         })
         .catch(error => {
           console.error('Failed to load shared shifts:', error);
@@ -807,7 +817,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.8.0</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.9.0</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
@@ -1159,7 +1169,7 @@ const ShiftScheduler = () => {
 
         {/* Shifts Table */}
         {shifts.length > 0 && (
-          <Card className="shadow-lg">
+          <Card className="shadow-lg" ref={shiftsTableRef}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5" />
