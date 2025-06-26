@@ -37,6 +37,39 @@ const decodeShareData = (encoded: string): { shifts: Shift[], settings: any, tea
   return JSON.parse(decodeURIComponent(encoded));
 };
 
+// Color generation function for team members
+const generateMemberColors = (memberNames: string[]) => {
+  const colors = [
+    'bg-blue-100 text-blue-800 border-blue-200',
+    'bg-green-100 text-green-800 border-green-200',
+    'bg-purple-100 text-purple-800 border-purple-200',
+    'bg-orange-100 text-orange-800 border-orange-200',
+    'bg-pink-100 text-pink-800 border-pink-200',
+    'bg-indigo-100 text-indigo-800 border-indigo-200',
+    'bg-teal-100 text-teal-800 border-teal-200',
+    'bg-red-100 text-red-800 border-red-200',
+    'bg-yellow-100 text-yellow-800 border-yellow-200',
+    'bg-cyan-100 text-cyan-800 border-cyan-200',
+    'bg-emerald-100 text-emerald-800 border-emerald-200',
+    'bg-violet-100 text-violet-800 border-violet-200',
+    'bg-amber-100 text-amber-800 border-amber-200',
+    'bg-lime-100 text-lime-800 border-lime-200',
+    'bg-rose-100 text-rose-800 border-rose-200',
+    'bg-sky-100 text-sky-800 border-sky-200',
+    'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200',
+    'bg-slate-100 text-slate-800 border-slate-200',
+    'bg-gray-100 text-gray-800 border-gray-200',
+    'bg-zinc-100 text-zinc-800 border-zinc-200'
+  ];
+  
+  const colorMap: Record<string, string> = {};
+  memberNames.forEach((name, index) => {
+    colorMap[name] = colors[index % colors.length];
+  });
+  
+  return colorMap;
+};
+
 const ShiftScheduler = () => {
   // Calculate the current Sunday (or today if it's Sunday)
   const getCurrentSunday = () => {
@@ -679,6 +712,9 @@ const ShiftScheduler = () => {
   // Get all worker names for datalist
   const workerNames = teamMembers.map(member => member.name);
 
+  // Generate color map for team members
+  const memberColors = generateMemberColors(workerNames);
+
   // Custom autocomplete for worker names
   const getAutocompleteSuggestions = (inputValue: string) => {
     if (!inputValue.trim()) return [];
@@ -817,7 +853,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.9.0</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.9.2</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
@@ -1177,6 +1213,21 @@ const ShiftScheduler = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Color Legend */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">מפת צבעים - חברי צוות:</h4>
+                <div className="flex flex-wrap gap-2">
+                  {teamMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className={`px-2 py-1 rounded text-xs font-medium border ${memberColors[member.name]}`}
+                    >
+                      {member.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
@@ -1256,7 +1307,7 @@ const ShiftScheduler = () => {
                                       {shift.members.map((member, idx) => (
                                         <div
                                           key={idx}
-                                          className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium"
+                                          className={`px-2 py-1 rounded text-xs font-medium border ${memberColors[member] || 'bg-blue-100 text-blue-800 border-blue-200'}`}
                                         >
                                           {member}
                                         </div>
