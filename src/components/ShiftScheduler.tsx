@@ -102,9 +102,18 @@ const ShiftScheduler = () => {
   const [editingShift, setEditingShift] = useState<{day: number, timeSlot: string} | null>(null);
   const [editValue, setEditValue] = useState('');
 
+  // Team member editing states
+  const [editingMember, setEditingMember] = useState<string | null>(null);
+  const [editMemberName, setEditMemberName] = useState('');
+  const [editMemberAvailableShifts, setEditMemberAvailableShifts] = useState<Record<number, string[]>>({});
+
   // Worker availability viewer states
   const [showAvailabilityViewer, setShowAvailabilityViewer] = useState(false);
   const [selectedWorkerForView, setSelectedWorkerForView] = useState<string>('');
+
+  // Share and network states
+  const [lastShareUrl, setLastShareUrl] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState<string | null>(null);
 
   // Ref for smooth scrolling to availability viewer
   const availabilityViewerRef = React.useRef<HTMLDivElement>(null);
@@ -465,6 +474,56 @@ const ShiftScheduler = () => {
     setTeamMembers(teamMembers.filter(member => member.id !== id));
   };
 
+  // Team member editing functions
+  const startEditMember = (member: TeamMember) => {
+    setEditingMember(member.id);
+    setEditMemberName(member.name);
+    setEditMemberAvailableShifts({ ...member.availableShifts });
+  };
+
+  const saveEditMember = () => {
+    if (!editingMember || !editMemberName.trim()) return;
+
+    setTeamMembers(prevMembers => 
+      prevMembers.map(member => 
+        member.id === editingMember 
+          ? { ...member, name: editMemberName.trim(), availableShifts: { ...editMemberAvailableShifts } }
+          : member
+      )
+    );
+
+    setEditingMember(null);
+    setEditMemberName('');
+    setEditMemberAvailableShifts({});
+  };
+
+  const cancelEditMember = () => {
+    setEditingMember(null);
+    setEditMemberName('');
+    setEditMemberAvailableShifts({});
+  };
+
+  const toggleEditAvailableShift = (dayIndex: number, timeSlot: string) => {
+    setEditMemberAvailableShifts(prev => {
+      const dayAvailable = prev[dayIndex] || [];
+      const isCurrentlyAvailable = dayAvailable.includes(timeSlot);
+      
+      if (isCurrentlyAvailable) {
+        // Remove from available
+        const newDayAvailable = dayAvailable.filter(s => s !== timeSlot);
+        if (newDayAvailable.length === 0) {
+          const { [dayIndex]: _, ...rest } = prev;
+          return rest;
+        } else {
+          return { ...prev, [dayIndex]: newDayAvailable };
+        }
+      } else {
+        // Add to available
+        return { ...prev, [dayIndex]: [...dayAvailable, timeSlot] };
+      }
+    });
+  };
+
   const toggleAvailableShift = (dayIndex: number, timeSlot: string) => {
     setNewMemberAvailableShifts(prev => {
       const dayAvailable = prev[dayIndex] || [];
@@ -797,9 +856,6 @@ const ShiftScheduler = () => {
     return JSON.parse(decodeURIComponent(encodedShifts));
   };
 
-  const [lastShareUrl, setLastShareUrl] = useState<string | null>(null);
-  const [networkError, setNetworkError] = useState<string | null>(null);
-
   const shareShifts = async () => {
     if (shifts.length === 0) {
       alert('אין משמרות לשתף');
@@ -853,7 +909,7 @@ const ShiftScheduler = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative text-center space-y-2">
-          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.9.2</span>
+          <span className="absolute right-0 top-0 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-bl px-2 py-1 font-mono z-10">v2.9.4</span>
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2 pr-12 md:pr-0">מערכת חלוקת משמרות</h1>
           <p className="text-lg text-gray-600 flex items-center justify-center gap-2">
             <Users className="w-5 h-5" />
@@ -1064,41 +1120,114 @@ const ShiftScheduler = () => {
               {teamMembers.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">אין חברי צוות. הוסף חברי צוות כדי להתחיל.</p>
               ) : (
-                teamMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <h3 className="font-medium">{member.name}</h3>
-                      {Object.keys(member.availableShifts).length > 0 && (
-                        <div className="text-sm text-gray-600 mt-1">
-                          <span>זמין: </span>
-                          {Object.entries(member.availableShifts).map(([day, shifts]) => (
-                            <span key={day} className="mr-2">
-                              {DAYS_OF_WEEK[parseInt(day)]}: {shifts.join(', ')}
-                            </span>
-                          ))}
+                teamMembers.map((member) => {
+                  const isEditing = editingMember === member.id;
+                  
+                  return (
+                    <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      {isEditing ? (
+                        // Edit form
+                        <div className="flex-1 space-y-3">
+                          <div>
+                            <Label htmlFor={`edit-member-name-${member.id}`}>שם חבר הצוות</Label>
+                            <Input
+                              id={`edit-member-name-${member.id}`}
+                              value={editMemberName}
+                              onChange={(e) => setEditMemberName(e.target.value)}
+                              placeholder="הכנס שם..."
+                            />
+                          </div>
+                          <div>
+                            <Label>בחר משמרות בהן זמין (לפי יום ושעות):</Label>
+                            <div className="mt-3 overflow-x-auto">
+                              <table className="w-full border-collapse border border-gray-300">
+                                <thead>
+                                  <tr className="bg-gray-100">
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">יום</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">06:00-10:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">10:00-14:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">14:00-18:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">18:00-22:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">22:00-02:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">02:00-06:00</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {DAYS_OF_WEEK.map((dayName, dayIndex) => (
+                                    <tr key={dayIndex}>
+                                      <td className="border border-gray-300 p-2 text-sm font-medium bg-gray-50">
+                                        {dayName}
+                                      </td>
+                                      {TIME_SLOTS.map((timeSlot) => (
+                                        <td key={timeSlot} className="border border-gray-300 p-2 text-center">
+                                          <Checkbox
+                                            checked={(editMemberAvailableShifts[dayIndex] || []).includes(timeSlot)}
+                                            onCheckedChange={() => toggleEditAvailableShift(dayIndex, timeSlot)}
+                                          />
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={saveEditMember} disabled={!editMemberName.trim()}>
+                              שמור
+                            </Button>
+                            <Button variant="outline" onClick={cancelEditMember}>
+                              ביטול
+                            </Button>
+                          </div>
                         </div>
+                      ) : (
+                        // Display mode
+                        <>
+                          <div className="flex-1">
+                            <h3 className="font-medium">{member.name}</h3>
+                            {Object.keys(member.availableShifts).length > 0 && (
+                              <div className="text-sm text-gray-600 mt-1">
+                                <span>זמין: </span>
+                                {Object.entries(member.availableShifts).map(([day, shifts]) => (
+                                  <span key={day} className="mr-2">
+                                    {DAYS_OF_WEEK[parseInt(day)]}: {shifts.join(', ')}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEditMember(member)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => viewWorkerAvailability(member.name)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              צפה בזמינות
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeTeamMember(member.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </>
                       )}
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => viewWorkerAvailability(member.name)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        צפה בזמינות
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeTeamMember(member.id)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </CardContent>
