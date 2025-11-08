@@ -1429,7 +1429,7 @@ const ShiftScheduler = () => {
                 <p className="text-xs text-gray-500 mt-1">{activeProfile.label}</p>
               </div>
               <div>
-                <Label className="block" htmlFor="day-shift-workers">סד"כ במשמרת יום ({dayShiftLabel})</Label>
+                <Label className="block" htmlFor="day-shift-workers">סד"כ במשמרת יום</Label>
                 <Input
                   id="day-shift-workers"
                   type="text"
@@ -1452,7 +1452,7 @@ const ShiftScheduler = () => {
                 />
               </div>
               <div>
-                <Label className="block" htmlFor="night-shift-workers">סד"כ במשמרת לילה ({nightShiftLabel})</Label>
+                <Label className="block" htmlFor="night-shift-workers">סד"כ במשמרת לילה</Label>
                 <Input
                   id="night-shift-workers"
                   type="text"
