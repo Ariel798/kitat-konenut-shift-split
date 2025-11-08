@@ -22,6 +22,14 @@ interface Shift {
 
 const DAYS_OF_WEEK = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const TIME_SLOTS = ['06:00-12:00', '12:00-18:00', '18:00-00:00', '00:00-06:00'];
+const SLOTS_PER_DAY = TIME_SLOTS.length;
+const MIN_REST_GAP_SLOTS = 2;
+
+type RestAdjustment = {
+  member: string;
+  day: number;
+  timeSlot: string;
+};
 
 // Helper function to determine if a time slot is day or night
 const isDayShift = (timeSlot: string) => {
@@ -53,6 +61,41 @@ const normalizeSlotsToCurrent = (slots: string[] = []) => {
   });
 
   return TIME_SLOTS.filter(slot => normalized.has(slot));
+};
+
+const getShiftIndex = (day: number, timeSlot: string) => {
+  const slotIndex = TIME_SLOTS.indexOf(timeSlot);
+  if (slotIndex === -1) {
+    return -1;
+  }
+  return day * SLOTS_PER_DAY + slotIndex;
+};
+
+const hasRequiredRestGap = (assignmentIndices: number[] = [], targetIndex: number) => {
+  return assignmentIndices.every(idx => Math.abs(idx - targetIndex) > MIN_REST_GAP_SLOTS);
+};
+
+const getWorkerShiftIndices = (
+  workerName: string,
+  shiftsList: Shift[],
+  exclude?: { day: number; timeSlot: string }
+) => {
+  const indices: number[] = [];
+
+  shiftsList.forEach(shift => {
+    if (exclude && shift.day === exclude.day && shift.timeSlot === exclude.timeSlot) {
+      return;
+    }
+
+    if (shift.members.includes(workerName)) {
+      const shiftIndex = getShiftIndex(shift.day, shift.timeSlot);
+      if (shiftIndex !== -1) {
+        indices.push(shiftIndex);
+      }
+    }
+  });
+
+  return indices.sort((a, b) => a - b);
 };
 
 const normalizeAvailabilityMap = (availability: Record<number, string[]> = {}) => {
@@ -199,7 +242,11 @@ const ShiftScheduler = () => {
 
   const normalizeShift = (shift: Shift): Shift | null => {
     if (TIME_SLOTS.includes(shift.timeSlot)) {
-      return shift;
+      return {
+        day: shift.day,
+        timeSlot: shift.timeSlot,
+        members: [...shift.members]
+      };
     }
 
     const mappedSlots = normalizeSlotsToCurrent([shift.timeSlot]);
@@ -208,9 +255,49 @@ const ShiftScheduler = () => {
     }
 
     return {
-      ...shift,
-      timeSlot: mappedSlots[0]
+      day: shift.day,
+      timeSlot: mappedSlots[0],
+      members: [...shift.members]
     };
+  };
+
+  const enforceRestGapOnShifts = (shiftList: Shift[]) => {
+    const lastAssignmentIndex: Record<string, number | undefined> = {};
+    const sanitizedShifts: Shift[] = [];
+    const removedAssignments: RestAdjustment[] = [];
+
+    shiftList.forEach(shift => {
+      const shiftIndex = getShiftIndex(shift.day, shift.timeSlot);
+      if (shiftIndex === -1) {
+        return;
+      }
+
+      const allowedMembers: string[] = [];
+
+      shift.members.forEach(member => {
+        const lastIndex = lastAssignmentIndex[member];
+        if (lastIndex === undefined || Math.abs(shiftIndex - lastIndex) > MIN_REST_GAP_SLOTS) {
+          allowedMembers.push(member);
+          lastAssignmentIndex[member] = shiftIndex;
+        } else {
+          removedAssignments.push({
+            member,
+            day: shift.day,
+            timeSlot: shift.timeSlot
+          });
+        }
+      });
+
+      if (allowedMembers.length > 0) {
+        sanitizedShifts.push({
+          day: shift.day,
+          timeSlot: shift.timeSlot,
+          members: allowedMembers
+        });
+      }
+    });
+
+    return { shifts: sanitizedShifts, removedAssignments };
   };
 
   const normalizeShifts = (shiftList: Shift[]) => {
@@ -242,7 +329,7 @@ const ShiftScheduler = () => {
       return TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot);
     });
 
-    return normalized;
+    return enforceRestGapOnShifts(normalized);
   };
 
   const loadTeamMembersFromStorage = (): TeamMember[] => {
@@ -322,7 +409,8 @@ const ShiftScheduler = () => {
         })
         .then(decoded => {
           const decodedSettings = decoded.settings || {};
-          const normalizedShifts = normalizeShifts(decoded.shifts || []);
+          const normalizedShiftResult = normalizeShifts(decoded.shifts || []);
+          const normalizedShifts = normalizedShiftResult.shifts;
           const normalizedMembers = (decoded.teamMembers || []).map(normalizeTeamMember);
 
           setShifts(normalizedShifts);
@@ -335,6 +423,13 @@ const ShiftScheduler = () => {
           setMaxShiftsPerEmployeeInput((decodedSettings.maxShiftsPerEmployee || 10).toString());
           if (decoded.selectedWeek) {
             setSelectedWeek(decoded.selectedWeek);
+          }
+          if (normalizedShiftResult.removedAssignments.length > 0) {
+            const affectedMembers = Array.from(
+              new Set(normalizedShiftResult.removedAssignments.map(item => item.member))
+            );
+            console.warn('Rest gap adjustments applied to shared schedule:', normalizedShiftResult.removedAssignments);
+            alert(`חלק מהשיבוצים הוסרו כדי לשמור על מנוחה של שני משמרות עבור: ${affectedMembers.join(', ')}`);
           }
           // Remove blob param from URL
           const newUrl = window.location.pathname;
@@ -669,10 +764,12 @@ const ShiftScheduler = () => {
     // Step 1: Calculate total available shifts for each worker
     const workerAvailability: Record<string, number> = {};
     const workerShiftCount: Record<string, number> = {};
+    const workerAssignments: Record<string, number[]> = {};
     
     teamMembers.forEach(member => {
       workerAvailability[member.name] = 0;
       workerShiftCount[member.name] = 0;
+      workerAssignments[member.name] = [];
       
       // Count total available shifts for this worker
       for (let day = 0; day < 7; day++) {
@@ -728,18 +825,27 @@ const ShiftScheduler = () => {
         Object.keys(workerShiftCount).forEach(worker => {
           workerShiftCount[worker] = 0;
         });
+        Object.keys(workerAssignments).forEach(worker => {
+          workerAssignments[worker] = [];
+        });
         newShifts.length = 0; // Clear previous assignments
       }
       
       allShifts.forEach(shift => {
         const exactWorkers = isDayShift(shift.timeSlot) ? dayShiftWorkers : nightShiftWorkers;
         const assignedCount = Math.min(exactWorkers, shift.availableWorkers.length);
+        const shiftIndex = getShiftIndex(shift.day, shift.timeSlot);
         
-        if (assignedCount > 0) {
+        if (assignedCount > 0 && shiftIndex !== -1) {
           // Filter workers who haven't reached their limit
-          const eligibleWorkers = shift.availableWorkers.filter(worker => 
-            workerShiftCount[worker] < maxShiftsPerEmployee
-          );
+          const eligibleWorkers = shift.availableWorkers.filter(worker => {
+            if (workerShiftCount[worker] >= maxShiftsPerEmployee) {
+              return false;
+            }
+
+            const assignments = workerAssignments[worker] || [];
+            return hasRequiredRestGap(assignments, shiftIndex);
+          });
           
           if (eligibleWorkers.length > 0) {
             // Sort eligible workers by fairness score with more aggressive balancing
@@ -765,6 +871,11 @@ const ShiftScheduler = () => {
             // Update shift counts
             assignedWorkers.forEach(worker => {
               workerShiftCount[worker]++;
+              if (!workerAssignments[worker]) {
+                workerAssignments[worker] = [];
+              }
+              workerAssignments[worker].push(shiftIndex);
+              workerAssignments[worker].sort((a, b) => a - b);
             });
 
             newShifts.push({
@@ -821,6 +932,7 @@ const ShiftScheduler = () => {
 
     const { day, timeSlot } = editingShift;
     const memberNames = editValue.split(',').map(name => name.trim()).filter(name => name.length > 0);
+    const shiftIndex = getShiftIndex(day, timeSlot);
     
     // Validate that all names exist in team members
     const validNames = memberNames.filter(name => 
@@ -842,6 +954,20 @@ const ShiftScheduler = () => {
       
       if (!confirm(confirmMessage)) {
         return; // User cancelled
+      }
+    }
+
+    if (shiftIndex !== -1) {
+      const restConflictWorkers = validNames.filter(workerName => {
+        const existingIndices = getWorkerShiftIndices(workerName, shifts, editingShift);
+        return !hasRequiredRestGap(existingIndices, shiftIndex);
+      });
+
+      if (restConflictWorkers.length > 0) {
+        const restMessage = `העובדים הבאים שובצו למשמרות סמוכות ללא מנוחה של שני משמרות (${DAYS_OF_WEEK[day]} ${timeSlot}):\n${restConflictWorkers.join(', ')}\n\nהאם ברצונך להמשיך בכל זאת?`;
+        if (!confirm(restMessage)) {
+          return;
+        }
       }
     }
 
@@ -966,7 +1092,11 @@ const ShiftScheduler = () => {
 
   const decodeShifts = (encodedShifts: string): Shift[] => {
     const parsed = JSON.parse(decodeURIComponent(encodedShifts)) as Shift[];
-    return normalizeShifts(parsed || []);
+    const normalizedResult = normalizeShifts(parsed || []);
+    if (normalizedResult.removedAssignments.length > 0) {
+      console.warn('Rest gap adjustments applied while decoding shifts:', normalizedResult.removedAssignments);
+    }
+    return normalizedResult.shifts;
   };
 
   const shareShifts = async () => {
