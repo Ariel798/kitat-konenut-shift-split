@@ -1030,13 +1030,38 @@ const ShiftScheduler = () => {
   };
 
   const handleAutocompleteSelect = (selectedName: string) => {
-    const parts = editValue.split(',').map(part => part.trim());
-    parts[parts.length - 1] = selectedName; // Replace the current word with selected name
-    setEditValue(parts.join(', '));
+    setEditValue(prevValue => {
+      const parts = prevValue.split(',');
+
+      if (parts.length === 0) {
+        return selectedName;
+      }
+
+      parts[parts.length - 1] = selectedName;
+
+      const normalizedParts = parts
+        .map(part => part.trim())
+        .filter(part => part.length > 0);
+
+      return normalizedParts.join(', ');
+    });
+
+    setSuggestions([]);
+    setShowSuggestions(false);
+
+    requestAnimationFrame(() => {
+      const inputEl = editInputRef.current;
+      if (inputEl) {
+        const valueLength = inputEl.value.length;
+        inputEl.focus();
+        inputEl.setSelectionRange(valueLength, valueLength);
+      }
+    });
   };
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const editInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -1625,6 +1650,7 @@ const ShiftScheduler = () => {
                                 <div className="space-y-2">
                                   <div className="relative">
                                     <Input
+                                      ref={editInputRef}
                                       value={editValue}
                                       onChange={handleEditInputChange}
                                       onKeyDown={handleEditKeyPress}
@@ -1640,7 +1666,10 @@ const ShiftScheduler = () => {
                                           <div
                                             key={name}
                                             className="p-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                            onClick={() => handleAutocompleteSelect(name)}
+                                            onMouseDown={(event) => {
+                                              event.preventDefault();
+                                              handleAutocompleteSelect(name);
+                                            }}
                                           >
                                             {name}
                                           </div>
