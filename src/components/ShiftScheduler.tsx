@@ -21,11 +21,52 @@ interface Shift {
 }
 
 const DAYS_OF_WEEK = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-const TIME_SLOTS = ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00', '22:00-02:00', '02:00-06:00'];
+const TIME_SLOTS = ['06:00-12:00', '12:00-18:00', '18:00-00:00', '00:00-06:00'];
 
 // Helper function to determine if a time slot is day or night
 const isDayShift = (timeSlot: string) => {
-  return ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00'].includes(timeSlot);
+  return ['06:00-12:00', '12:00-18:00'].includes(timeSlot);
+};
+
+const LEGACY_SLOT_MAP: Record<string, string[]> = {
+  '06:00-10:00': ['06:00-12:00'],
+  '10:00-14:00': ['06:00-12:00', '12:00-18:00'],
+  '14:00-18:00': ['12:00-18:00'],
+  '18:00-22:00': ['18:00-00:00'],
+  '22:00-02:00': ['18:00-00:00', '00:00-06:00'],
+  '02:00-06:00': ['00:00-06:00'],
+};
+
+const normalizeSlotsToCurrent = (slots: string[] = []) => {
+  const normalized = new Set<string>();
+
+  slots.forEach(slot => {
+    if (TIME_SLOTS.includes(slot)) {
+      normalized.add(slot);
+      return;
+    }
+
+    const mapped = LEGACY_SLOT_MAP[slot];
+    if (mapped) {
+      mapped.forEach(newSlot => normalized.add(newSlot));
+    }
+  });
+
+  return TIME_SLOTS.filter(slot => normalized.has(slot));
+};
+
+const normalizeAvailabilityMap = (availability: Record<number, string[]> = {}) => {
+  const normalized: Record<number, string[]> = {};
+
+  for (let day = 0; day < 7; day++) {
+    const daySlots = availability[day] || [];
+    const normalizedSlots = normalizeSlotsToCurrent(daySlots);
+    if (normalizedSlots.length > 0) {
+      normalized[day] = normalizedSlots;
+    }
+  }
+
+  return normalized;
 };
 
 // Add new encode/decode functions above ShiftScheduler
@@ -144,16 +185,73 @@ const ShiftScheduler = () => {
   // localStorage functions for complete team member data
   const saveTeamMembersToStorage = (members: TeamMember[]) => {
     try {
-      localStorage.setItem('shiftScheduler_teamMembers', JSON.stringify(members));
+      const normalizedMembers = members.map(normalizeTeamMember);
+      localStorage.setItem('shiftScheduler_teamMembers', JSON.stringify(normalizedMembers));
     } catch (error) {
       console.error('Failed to save team members to localStorage:', error);
     }
   };
 
+  const normalizeTeamMember = (member: TeamMember): TeamMember => ({
+    ...member,
+    availableShifts: normalizeAvailabilityMap(member.availableShifts || {})
+  });
+
+  const normalizeShift = (shift: Shift): Shift | null => {
+    if (TIME_SLOTS.includes(shift.timeSlot)) {
+      return shift;
+    }
+
+    const mappedSlots = normalizeSlotsToCurrent([shift.timeSlot]);
+    if (mappedSlots.length === 0) {
+      return null;
+    }
+
+    return {
+      ...shift,
+      timeSlot: mappedSlots[0]
+    };
+  };
+
+  const normalizeShifts = (shiftList: Shift[]) => {
+    const normalized: Shift[] = [];
+
+    shiftList.forEach(shift => {
+      const normalizedShift = normalizeShift(shift);
+      if (!normalizedShift) {
+        return;
+      }
+
+      const existingIndex = normalized.findIndex(
+        s => s.day === normalizedShift.day && s.timeSlot === normalizedShift.timeSlot
+      );
+
+      if (existingIndex >= 0) {
+        const existing = normalized[existingIndex];
+        const uniqueMembers = Array.from(new Set([...existing.members, ...normalizedShift.members]));
+        normalized[existingIndex] = { ...existing, members: uniqueMembers };
+      } else {
+        normalized.push(normalizedShift);
+      }
+    });
+
+    normalized.sort((a, b) => {
+      if (a.day !== b.day) {
+        return a.day - b.day;
+      }
+      return TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot);
+    });
+
+    return normalized;
+  };
+
   const loadTeamMembersFromStorage = (): TeamMember[] => {
     try {
       const saved = localStorage.getItem('shiftScheduler_teamMembers');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+
+      const parsed = JSON.parse(saved) as TeamMember[];
+      return parsed.map(normalizeTeamMember);
     } catch (error) {
       console.error('Failed to load team members from localStorage:', error);
       return [];
@@ -206,7 +304,7 @@ const ShiftScheduler = () => {
           name,
           availableShifts: initializeAvailableShifts()
         }));
-        setTeamMembers(savedMembers);
+      setTeamMembers(savedMembers.map(normalizeTeamMember));
       }
     }
     
@@ -223,14 +321,18 @@ const ShiftScheduler = () => {
           return res.json();
         })
         .then(decoded => {
-          setShifts(decoded.shifts);
-          setTeamMembers(decoded.teamMembers);
-          setDayShiftWorkers(decoded.settings.dayShiftWorkers || 1);
-          setNightShiftWorkers(decoded.settings.nightShiftWorkers || 1);
-          setMaxShiftsPerEmployee(decoded.settings.maxShiftsPerEmployee || 10);
-          setDayShiftWorkersInput((decoded.settings.dayShiftWorkers || 1).toString());
-          setNightShiftWorkersInput((decoded.settings.nightShiftWorkers || 1).toString());
-          setMaxShiftsPerEmployeeInput((decoded.settings.maxShiftsPerEmployee || 10).toString());
+          const decodedSettings = decoded.settings || {};
+          const normalizedShifts = normalizeShifts(decoded.shifts || []);
+          const normalizedMembers = (decoded.teamMembers || []).map(normalizeTeamMember);
+
+          setShifts(normalizedShifts);
+          setTeamMembers(normalizedMembers);
+          setDayShiftWorkers(decodedSettings.dayShiftWorkers || 1);
+          setNightShiftWorkers(decodedSettings.nightShiftWorkers || 1);
+          setMaxShiftsPerEmployee(decodedSettings.maxShiftsPerEmployee || 10);
+          setDayShiftWorkersInput((decodedSettings.dayShiftWorkers || 1).toString());
+          setNightShiftWorkersInput((decodedSettings.nightShiftWorkers || 1).toString());
+          setMaxShiftsPerEmployeeInput((decodedSettings.maxShiftsPerEmployee || 10).toString());
           if (decoded.selectedWeek) {
             setSelectedWeek(decoded.selectedWeek);
           }
@@ -285,8 +387,8 @@ const ShiftScheduler = () => {
     return allAvailable;
   };
 
-  // Development preset workers data - updated to use specific time slots
-  const presetWorkers = [
+  // Development preset workers data (legacy 4-hour slots; normalized to current 6-hour slots at runtime)
+  const legacyPresetWorkers: Array<{ name: string; availability: Record<number, string[]> }> = [
     {
       name: 'אריאל',
       availability: {
@@ -447,13 +549,19 @@ const ShiftScheduler = () => {
     }
   ];
 
+  const presetWorkers = legacyPresetWorkers.map(worker => ({
+    name: worker.name,
+    availability: normalizeAvailabilityMap(worker.availability)
+  }));
+
   const addPresetWorkers = () => {
     const newMembers: TeamMember[] = presetWorkers.map((worker, index) => ({
       id: `preset-${Date.now()}-${index}`,
       name: worker.name,
       availableShifts: worker.availability
     }));
-    setTeamMembers([...teamMembers, ...newMembers]);
+    const normalizedMembers = newMembers.map(normalizeTeamMember);
+    setTeamMembers([...teamMembers, ...normalizedMembers]);
   };
 
   const addTeamMember = () => {
@@ -463,7 +571,7 @@ const ShiftScheduler = () => {
         name: newMemberName.trim(),
         availableShifts: { ...newMemberAvailableShifts }
       };
-      setTeamMembers([...teamMembers, newMember]);
+      setTeamMembers([...teamMembers, normalizeTeamMember(newMember)]);
       setNewMemberName('');
       setNewMemberAvailableShifts(initializeAvailableShifts());
       setShowAddForm(false);
@@ -487,7 +595,11 @@ const ShiftScheduler = () => {
     setTeamMembers(prevMembers => 
       prevMembers.map(member => 
         member.id === editingMember 
-          ? { ...member, name: editMemberName.trim(), availableShifts: { ...editMemberAvailableShifts } }
+          ? normalizeTeamMember({
+              ...member,
+              name: editMemberName.trim(),
+              availableShifts: { ...editMemberAvailableShifts }
+            })
           : member
       )
     );
@@ -853,7 +965,8 @@ const ShiftScheduler = () => {
   };
 
   const decodeShifts = (encodedShifts: string): Shift[] => {
-    return JSON.parse(decodeURIComponent(encodedShifts));
+    const parsed = JSON.parse(decodeURIComponent(encodedShifts)) as Shift[];
+    return normalizeShifts(parsed || []);
   };
 
   const shareShifts = async () => {
@@ -953,7 +1066,7 @@ const ShiftScheduler = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="day-shift-workers">סד"כ במשמרת יום (06:00-22:00)</Label>
+                <Label htmlFor="day-shift-workers">סד"כ במשמרת יום (06:00-18:00)</Label>
                 <Input
                   id="day-shift-workers"
                   type="text"
@@ -976,7 +1089,7 @@ const ShiftScheduler = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="night-shift-workers">סד"כ במשמרת לילה (22:00-06:00)</Label>
+                <Label htmlFor="night-shift-workers">סד"כ במשמרת לילה (18:00-06:00)</Label>
                 <Input
                   id="night-shift-workers"
                   type="text"
@@ -1074,12 +1187,10 @@ const ShiftScheduler = () => {
                         <thead>
                           <tr className="bg-gray-100">
                             <th className="border border-gray-300 p-2 text-sm font-medium">יום</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">06:00-10:00</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">10:00-14:00</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">14:00-18:00</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">18:00-22:00</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">22:00-02:00</th>
-                            <th className="border border-gray-300 p-2 text-sm font-medium">02:00-06:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">06:00-12:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">12:00-18:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">18:00-00:00</th>
+                            <th className="border border-gray-300 p-2 text-sm font-medium">00:00-06:00</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1144,12 +1255,10 @@ const ShiftScheduler = () => {
                                 <thead>
                                   <tr className="bg-gray-100">
                                     <th className="border border-gray-300 p-2 text-sm font-medium">יום</th>
-                                    <th className="border border-gray-300 p-2 text-sm font-medium">06:00-10:00</th>
-                                    <th className="border border-gray-300 p-2 text-sm font-medium">10:00-14:00</th>
-                                    <th className="border border-gray-300 p-2 text-sm font-medium">14:00-18:00</th>
-                                    <th className="border border-gray-300 p-2 text-sm font-medium">18:00-22:00</th>
-                                    <th className="border border-gray-300 p-2 text-sm font-medium">22:00-02:00</th>
-                                    <th className="border border-gray-300 p-2 text-sm font-medium">02:00-06:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">06:00-12:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">12:00-18:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">18:00-00:00</th>
+                                    <th className="border border-gray-300 p-2 text-sm font-medium">00:00-06:00</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1260,12 +1369,10 @@ const ShiftScheduler = () => {
                       <thead>
                         <tr className="bg-gray-100">
                           <th className="border border-gray-300 p-2 text-sm font-medium">יום</th>
-                          <th className="border border-gray-300 p-2 text-sm font-medium">06:00-10:00</th>
-                          <th className="border border-gray-300 p-2 text-sm font-medium">10:00-14:00</th>
-                          <th className="border border-gray-300 p-2 text-sm font-medium">14:00-18:00</th>
-                          <th className="border border-gray-300 p-2 text-sm font-medium">18:00-22:00</th>
-                          <th className="border border-gray-300 p-2 text-sm font-medium">22:00-02:00</th>
-                          <th className="border border-gray-300 p-2 text-sm font-medium">02:00-06:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">06:00-12:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">12:00-18:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">18:00-00:00</th>
+                          <th className="border border-gray-300 p-2 text-sm font-medium">00:00-06:00</th>
                         </tr>
                       </thead>
                       <tbody>
