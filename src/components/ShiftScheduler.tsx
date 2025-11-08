@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, Plus, Trash2, Users, Clock, Settings, Edit3, Check, X, Share2, Link } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -21,8 +22,60 @@ interface Shift {
 }
 
 const DAYS_OF_WEEK = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-const TIME_SLOTS = ['06:00-12:00', '12:00-18:00', '18:00-00:00', '00:00-06:00'];
-const SLOTS_PER_DAY = TIME_SLOTS.length;
+
+type ShiftLengthOption = '3h' | '4h' | '6h';
+
+interface SlotProfile {
+  id: ShiftLengthOption;
+  label: string;
+  slots: string[];
+  daySlots: string[];
+}
+
+const SLOT_PROFILES: Record<ShiftLengthOption, SlotProfile> = {
+  '3h': {
+    id: '3h',
+    label: '3 שעות (8 משמרות ביום)',
+    slots: [
+      '06:00-09:00',
+      '09:00-12:00',
+      '12:00-15:00',
+      '15:00-18:00',
+      '18:00-21:00',
+      '21:00-00:00',
+      '00:00-03:00',
+      '03:00-06:00'
+    ],
+    daySlots: ['06:00-09:00', '09:00-12:00', '12:00-15:00', '15:00-18:00']
+  },
+  '4h': {
+    id: '4h',
+    label: '4 שעות (6 משמרות ביום)',
+    slots: [
+      '06:00-10:00',
+      '10:00-14:00',
+      '14:00-18:00',
+      '18:00-22:00',
+      '22:00-02:00',
+      '02:00-06:00'
+    ],
+    daySlots: ['06:00-10:00', '10:00-14:00', '14:00-18:00', '18:00-22:00']
+  },
+  '6h': {
+    id: '6h',
+    label: '6 שעות (4 משמרות ביום)',
+    slots: ['06:00-12:00', '12:00-18:00', '18:00-00:00', '00:00-06:00'],
+    daySlots: ['06:00-12:00', '12:00-18:00']
+  }
+};
+
+const SHIFT_LENGTH_OPTIONS: Array<{ id: ShiftLengthOption; label: string }> = [
+  { id: '3h', label: '3 שעות' },
+  { id: '4h', label: '4 שעות' },
+  { id: '6h', label: '6 שעות' }
+];
+
+const SHIFT_LENGTH_STORAGE_KEY = 'shiftScheduler_shiftLength';
 const MIN_REST_GAP_SLOTS = 2;
 
 type RestAdjustment = {
@@ -31,93 +84,188 @@ type RestAdjustment = {
   timeSlot: string;
 };
 
-// Helper function to determine if a time slot is day or night
-const isDayShift = (timeSlot: string) => {
-  return ['06:00-12:00', '12:00-18:00'].includes(timeSlot);
+const toMinutes = (time: string) => {
+  const [hours, minutes] = time.split(':').map(Number);
+  return (hours % 24) * 60 + (minutes || 0);
 };
 
-const LEGACY_SLOT_MAP: Record<string, string[]> = {
-  '06:00-10:00': ['06:00-12:00'],
-  '10:00-14:00': ['06:00-12:00', '12:00-18:00'],
-  '14:00-18:00': ['12:00-18:00'],
-  '18:00-22:00': ['18:00-00:00'],
-  '22:00-02:00': ['18:00-00:00', '00:00-06:00'],
-  '02:00-06:00': ['00:00-06:00'],
+const getSlotSegments = (slot: string): Array<{ start: number; end: number }> => {
+  const [startTime, endTime] = slot.split('-');
+  const start = toMinutes(startTime);
+  const end = toMinutes(endTime);
+
+  if (end > start) {
+    return [{ start, end }];
+  }
+
+  return [
+    { start, end: 24 * 60 },
+    { start: 0, end }
+  ];
 };
 
-const normalizeSlotsToCurrent = (slots: string[] = []) => {
+const segmentsOverlap = (
+  a: Array<{ start: number; end: number }>,
+  b: Array<{ start: number; end: number }>
+) => {
+  return a.some(segA =>
+    b.some(segB => Math.max(segA.start, segB.start) < Math.min(segA.end, segB.end))
+  );
+};
+
+const mapSlotToProfileSlots = (slot: string, profile: SlotProfile) => {
+  if (profile.slots.includes(slot)) {
+    return [slot];
+  }
+
+  const originSegments = getSlotSegments(slot);
+  const mapped = profile.slots.filter(profileSlot => {
+    const targetSegments = getSlotSegments(profileSlot);
+    return segmentsOverlap(originSegments, targetSegments);
+  });
+
+  return mapped;
+};
+
+const mapSlotsArrayToProfile = (slots: string[] = [], profile: SlotProfile) => {
   const normalized = new Set<string>();
 
   slots.forEach(slot => {
-    if (TIME_SLOTS.includes(slot)) {
-      normalized.add(slot);
-      return;
-    }
-
-    const mapped = LEGACY_SLOT_MAP[slot];
-    if (mapped) {
-      mapped.forEach(newSlot => normalized.add(newSlot));
+    const mapped = mapSlotToProfileSlots(slot, profile);
+    if (mapped.length > 0) {
+      mapped.forEach(value => normalized.add(value));
     }
   });
 
-  return TIME_SLOTS.filter(slot => normalized.has(slot));
+  return profile.slots.filter(slot => normalized.has(slot));
 };
 
-const getShiftIndex = (day: number, timeSlot: string) => {
-  const slotIndex = TIME_SLOTS.indexOf(timeSlot);
-  if (slotIndex === -1) {
-    return -1;
-  }
-  return day * SLOTS_PER_DAY + slotIndex;
-};
-
-const hasRequiredRestGap = (assignmentIndices: number[] = [], targetIndex: number) => {
-  return assignmentIndices.every(idx => Math.abs(idx - targetIndex) > MIN_REST_GAP_SLOTS);
-};
-
-const getWorkerShiftIndices = (
-  workerName: string,
-  shiftsList: Shift[],
-  exclude?: { day: number; timeSlot: string }
+const normalizeAvailabilityMapForProfile = (
+  availability: Record<number, string[]> = {},
+  profile: SlotProfile
 ) => {
-  const indices: number[] = [];
-
-  shiftsList.forEach(shift => {
-    if (exclude && shift.day === exclude.day && shift.timeSlot === exclude.timeSlot) {
-      return;
-    }
-
-    if (shift.members.includes(workerName)) {
-      const shiftIndex = getShiftIndex(shift.day, shift.timeSlot);
-      if (shiftIndex !== -1) {
-        indices.push(shiftIndex);
-      }
-    }
-  });
-
-  return indices.sort((a, b) => a - b);
-};
-
-const normalizeAvailabilityMap = (availability: Record<number, string[]> = {}) => {
   const normalized: Record<number, string[]> = {};
 
   for (let day = 0; day < 7; day++) {
-    const daySlots = availability[day] || [];
-    const normalizedSlots = normalizeSlotsToCurrent(daySlots);
-    if (normalizedSlots.length > 0) {
-      normalized[day] = normalizedSlots;
+    const mappedSlots = mapSlotsArrayToProfile(availability[day] || [], profile);
+    if (mappedSlots.length > 0) {
+      normalized[day] = mappedSlots;
     }
   }
 
   return normalized;
 };
 
+const normalizeTeamMemberForProfile = (member: TeamMember, profile: SlotProfile): TeamMember => ({
+  ...member,
+  availableShifts: normalizeAvailabilityMapForProfile(member.availableShifts || {}, profile)
+});
+
+const getShiftIndexForProfile = (day: number, timeSlot: string, profile: SlotProfile) => {
+  const slotIndex = profile.slots.indexOf(timeSlot);
+  if (slotIndex === -1) {
+    return -1;
+  }
+  return day * profile.slots.length + slotIndex;
+};
+
+const enforceRestGapOnShiftsForProfile = (shiftList: Shift[], profile: SlotProfile) => {
+  const lastAssignmentIndex: Record<string, number | undefined> = {};
+  const sanitizedShifts: Shift[] = [];
+  const removedAssignments: RestAdjustment[] = [];
+
+  shiftList.forEach(shift => {
+    const shiftIndex = getShiftIndexForProfile(shift.day, shift.timeSlot, profile);
+    if (shiftIndex === -1) {
+      return;
+    }
+
+    const allowedMembers: string[] = [];
+
+    shift.members.forEach(member => {
+      const lastIndex = lastAssignmentIndex[member];
+      if (lastIndex === undefined || Math.abs(shiftIndex - lastIndex) > MIN_REST_GAP_SLOTS) {
+        allowedMembers.push(member);
+        lastAssignmentIndex[member] = shiftIndex;
+      } else {
+        removedAssignments.push({
+          member,
+          day: shift.day,
+          timeSlot: shift.timeSlot
+        });
+      }
+    });
+
+    if (allowedMembers.length > 0) {
+      sanitizedShifts.push({
+        day: shift.day,
+        timeSlot: shift.timeSlot,
+        members: allowedMembers
+      });
+    }
+  });
+
+  return { shifts: sanitizedShifts, removedAssignments };
+};
+
+const normalizeShiftsForProfile = (shiftList: Shift[], profile: SlotProfile) => {
+  const normalized: Shift[] = [];
+
+  shiftList.forEach(shift => {
+    const mappedSlots = mapSlotToProfileSlots(shift.timeSlot, profile);
+    if (mappedSlots.length === 0) {
+      return;
+    }
+
+    mappedSlots.forEach(mappedSlot => {
+      const existingIndex = normalized.findIndex(
+        s => s.day === shift.day && s.timeSlot === mappedSlot
+      );
+
+      if (existingIndex >= 0) {
+        const existing = normalized[existingIndex];
+        const uniqueMembers = Array.from(new Set([...existing.members, ...shift.members]));
+        normalized[existingIndex] = { ...existing, members: uniqueMembers };
+      } else {
+        normalized.push({
+          day: shift.day,
+          timeSlot: mappedSlot,
+          members: [...shift.members]
+        });
+      }
+    });
+  });
+
+  normalized.sort((a, b) => {
+    if (a.day !== b.day) {
+      return a.day - b.day;
+    }
+    return profile.slots.indexOf(a.timeSlot) - profile.slots.indexOf(b.timeSlot);
+  });
+
+  return enforceRestGapOnShiftsForProfile(normalized, profile);
+};
+
 // Add new encode/decode functions above ShiftScheduler
-const encodeShareData = (data: { shifts: Shift[], settings: any, teamMembers: TeamMember[], selectedWeek: string }): string => {
+const encodeShareData = (data: {
+  shifts: Shift[];
+  settings: any;
+  teamMembers: TeamMember[];
+  selectedWeek: string;
+  shiftLength: ShiftLengthOption;
+}): string => {
   return encodeURIComponent(JSON.stringify(data));
 };
 
-const decodeShareData = (encoded: string): { shifts: Shift[], settings: any, teamMembers: TeamMember[], selectedWeek: string } => {
+const decodeShareData = (
+  encoded: string
+): {
+  shifts: Shift[];
+  settings: any;
+  teamMembers: TeamMember[];
+  selectedWeek: string;
+  shiftLength?: ShiftLengthOption;
+} => {
   return JSON.parse(decodeURIComponent(encoded));
 };
 
@@ -165,6 +313,16 @@ const ShiftScheduler = () => {
     return format(sunday, 'yyyy-MM-dd');
   };
 
+  const [shiftLength, setShiftLength] = useState<ShiftLengthOption>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem(SHIFT_LENGTH_STORAGE_KEY);
+      if (stored === '3h' || stored === '4h' || stored === '6h') {
+        return stored;
+      }
+    }
+    return '6h';
+  });
+
   const [selectedWeek, setSelectedWeek] = useState(getCurrentSunday());
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -203,6 +361,130 @@ const ShiftScheduler = () => {
   const availabilityViewerRef = React.useRef<HTMLDivElement>(null);
   // Ref for smooth scrolling to shifts table
   const shiftsTableRef = React.useRef<HTMLDivElement>(null);
+  const editInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const activeProfile = SLOT_PROFILES[shiftLength];
+  const activeSlots = activeProfile.slots;
+  const slotsPerDay = activeSlots.length;
+
+  const daySlotSet = useMemo(() => new Set(activeProfile.daySlots), [activeProfile]);
+  const nightSlots = useMemo(
+    () => activeProfile.slots.filter(slot => !daySlotSet.has(slot)),
+    [activeProfile, daySlotSet]
+  );
+  const dayShiftLabel = activeProfile.daySlots.length > 0 ? activeProfile.daySlots.join(', ') : 'אין';
+  const nightShiftLabel = nightSlots.length > 0 ? nightSlots.join(', ') : 'אין';
+
+  const normalizeSlotsToCurrent = useCallback(
+    (slots: string[] = []) => mapSlotsArrayToProfile(slots, activeProfile),
+    [activeProfile]
+  );
+
+  const normalizeAvailabilityMap = useCallback(
+    (availability: Record<number, string[]> = {}) =>
+      normalizeAvailabilityMapForProfile(availability, activeProfile),
+    [activeProfile]
+  );
+
+  const normalizeTeamMember = useCallback(
+    (member: TeamMember): TeamMember => normalizeTeamMemberForProfile(member, activeProfile),
+    [activeProfile]
+  );
+
+  const normalizeShifts = useCallback(
+    (shiftList: Shift[]) => normalizeShiftsForProfile(shiftList, activeProfile),
+    [activeProfile]
+  );
+
+  const isDayShift = useCallback((timeSlot: string) => daySlotSet.has(timeSlot), [daySlotSet]);
+
+  const getShiftIndex = useCallback(
+    (day: number, timeSlot: string) => {
+      const slotIndex = activeSlots.indexOf(timeSlot);
+      if (slotIndex === -1) {
+        return -1;
+      }
+      return day * slotsPerDay + slotIndex;
+    },
+    [activeSlots, slotsPerDay]
+  );
+
+  const hasRequiredRestGap = useCallback(
+    (assignmentIndices: number[] = [], targetIndex: number) => {
+      return assignmentIndices.every(idx => Math.abs(idx - targetIndex) > MIN_REST_GAP_SLOTS);
+    },
+    []
+  );
+
+  const getWorkerShiftIndices = useCallback(
+    (workerName: string, shiftsList: Shift[], exclude?: { day: number; timeSlot: string }) => {
+      const indices: number[] = [];
+
+      shiftsList.forEach(shift => {
+        if (exclude && shift.day === exclude.day && shift.timeSlot === exclude.timeSlot) {
+          return;
+        }
+
+        if (shift.members.includes(workerName)) {
+          const shiftIndex = getShiftIndex(shift.day, shift.timeSlot);
+          if (shiftIndex !== -1) {
+            indices.push(shiftIndex);
+          }
+        }
+      });
+
+      return indices.sort((a, b) => a - b);
+    },
+    [getShiftIndex]
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHIFT_LENGTH_STORAGE_KEY, shiftLength);
+    } catch (error) {
+      console.error('Failed to save shift length to localStorage:', error);
+    }
+  }, [shiftLength]);
+
+  useEffect(() => {
+    setTeamMembers(prev => prev.map(normalizeTeamMember));
+  }, [normalizeTeamMember]);
+
+  useEffect(() => {
+    setShifts(prev => {
+      const normalizedResult = normalizeShifts(prev);
+      if (normalizedResult.removedAssignments.length > 0) {
+        console.warn(
+          'Rest gap adjustments applied after shift length change:',
+          normalizedResult.removedAssignments
+        );
+      }
+      return normalizedResult.shifts;
+    });
+  }, [normalizeShifts]);
+
+  useEffect(() => {
+    setNewMemberAvailableShifts(prev => {
+      if (Object.keys(prev).length === 0) {
+        return prev;
+      }
+
+      const normalized: Record<number, string[]> = {};
+      for (let day = 0; day < 7; day++) {
+        const normalizedSlots = normalizeSlotsToCurrent(prev[day] || []);
+        if (normalizedSlots.length > 0) {
+          normalized[day] = normalizedSlots;
+        }
+      }
+      return normalized;
+    });
+  }, [normalizeSlotsToCurrent]);
+
+  useEffect(() => {
+    if (editingMember) {
+      setEditMemberAvailableShifts(prev => normalizeAvailabilityMap(prev || {}));
+    }
+  }, [editingMember, normalizeAvailabilityMap]);
 
   const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 0 });
 
@@ -233,103 +515,6 @@ const ShiftScheduler = () => {
     } catch (error) {
       console.error('Failed to save team members to localStorage:', error);
     }
-  };
-
-  const normalizeTeamMember = (member: TeamMember): TeamMember => ({
-    ...member,
-    availableShifts: normalizeAvailabilityMap(member.availableShifts || {})
-  });
-
-  const normalizeShift = (shift: Shift): Shift | null => {
-    if (TIME_SLOTS.includes(shift.timeSlot)) {
-      return {
-        day: shift.day,
-        timeSlot: shift.timeSlot,
-        members: [...shift.members]
-      };
-    }
-
-    const mappedSlots = normalizeSlotsToCurrent([shift.timeSlot]);
-    if (mappedSlots.length === 0) {
-      return null;
-    }
-
-    return {
-      day: shift.day,
-      timeSlot: mappedSlots[0],
-      members: [...shift.members]
-    };
-  };
-
-  const enforceRestGapOnShifts = (shiftList: Shift[]) => {
-    const lastAssignmentIndex: Record<string, number | undefined> = {};
-    const sanitizedShifts: Shift[] = [];
-    const removedAssignments: RestAdjustment[] = [];
-
-    shiftList.forEach(shift => {
-      const shiftIndex = getShiftIndex(shift.day, shift.timeSlot);
-      if (shiftIndex === -1) {
-        return;
-      }
-
-      const allowedMembers: string[] = [];
-
-      shift.members.forEach(member => {
-        const lastIndex = lastAssignmentIndex[member];
-        if (lastIndex === undefined || Math.abs(shiftIndex - lastIndex) > MIN_REST_GAP_SLOTS) {
-          allowedMembers.push(member);
-          lastAssignmentIndex[member] = shiftIndex;
-        } else {
-          removedAssignments.push({
-            member,
-            day: shift.day,
-            timeSlot: shift.timeSlot
-          });
-        }
-      });
-
-      if (allowedMembers.length > 0) {
-        sanitizedShifts.push({
-          day: shift.day,
-          timeSlot: shift.timeSlot,
-          members: allowedMembers
-        });
-      }
-    });
-
-    return { shifts: sanitizedShifts, removedAssignments };
-  };
-
-  const normalizeShifts = (shiftList: Shift[]) => {
-    const normalized: Shift[] = [];
-
-    shiftList.forEach(shift => {
-      const normalizedShift = normalizeShift(shift);
-      if (!normalizedShift) {
-        return;
-      }
-
-      const existingIndex = normalized.findIndex(
-        s => s.day === normalizedShift.day && s.timeSlot === normalizedShift.timeSlot
-      );
-
-      if (existingIndex >= 0) {
-        const existing = normalized[existingIndex];
-        const uniqueMembers = Array.from(new Set([...existing.members, ...normalizedShift.members]));
-        normalized[existingIndex] = { ...existing, members: uniqueMembers };
-      } else {
-        normalized.push(normalizedShift);
-      }
-    });
-
-    normalized.sort((a, b) => {
-      if (a.day !== b.day) {
-        return a.day - b.day;
-      }
-      return TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot);
-    });
-
-    return enforceRestGapOnShifts(normalized);
   };
 
   const loadTeamMembersFromStorage = (): TeamMember[] => {
@@ -409,11 +594,18 @@ const ShiftScheduler = () => {
         })
         .then(decoded => {
           const decodedSettings = decoded.settings || {};
-          const normalizedShiftResult = normalizeShifts(decoded.shifts || []);
-          const normalizedShifts = normalizedShiftResult.shifts;
-          const normalizedMembers = (decoded.teamMembers || []).map(normalizeTeamMember);
+          const targetShiftLength: ShiftLengthOption =
+            decoded.shiftLength === '3h' || decoded.shiftLength === '4h' || decoded.shiftLength === '6h'
+              ? decoded.shiftLength
+              : shiftLength;
+          const targetProfile = SLOT_PROFILES[targetShiftLength];
+          const normalizedShiftResult = normalizeShiftsForProfile(decoded.shifts || [], targetProfile);
+          const normalizedMembers = (decoded.teamMembers || []).map(member =>
+            normalizeTeamMemberForProfile(member, targetProfile)
+          );
 
-          setShifts(normalizedShifts);
+          setShiftLength(targetShiftLength);
+          setShifts(normalizedShiftResult.shifts);
           setTeamMembers(normalizedMembers);
           setDayShiftWorkers(decodedSettings.dayShiftWorkers || 1);
           setNightShiftWorkers(decodedSettings.nightShiftWorkers || 1);
@@ -477,7 +669,7 @@ const ShiftScheduler = () => {
   const initializeAvailableShifts = () => {
     const allAvailable: Record<number, string[]> = {};
     for (let day = 0; day < 7; day++) {
-      allAvailable[day] = [...TIME_SLOTS];
+      allAvailable[day] = [...activeSlots];
     }
     return allAvailable;
   };
@@ -773,7 +965,7 @@ const ShiftScheduler = () => {
       
       // Count total available shifts for this worker
       for (let day = 0; day < 7; day++) {
-        for (const timeSlot of TIME_SLOTS) {
+        for (const timeSlot of activeSlots) {
           const dayAvailable = member.availableShifts[day] || [];
           if (dayAvailable.includes(timeSlot)) {
             workerAvailability[member.name]++;
@@ -786,7 +978,7 @@ const ShiftScheduler = () => {
     const allShifts: Array<{day: number, timeSlot: string, availableWorkers: string[]}> = [];
     
     for (let day = 0; day < 7; day++) {
-      for (const timeSlot of TIME_SLOTS) {
+      for (const timeSlot of activeSlots) {
         const availableWorkers = teamMembers.filter(member => {
           const dayAvailable = member.availableShifts[day] || [];
           return dayAvailable.includes(timeSlot);
@@ -813,7 +1005,7 @@ const ShiftScheduler = () => {
         return a.day - b.day;
       }
       // Tertiary: Sort by time slot
-      return TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot);
+      return activeSlots.indexOf(a.timeSlot) - activeSlots.indexOf(b.timeSlot);
     });
 
     // Step 4: Multi-pass assignment for better distribution
@@ -1061,7 +1253,6 @@ const ShiftScheduler = () => {
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const editInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -1139,7 +1330,8 @@ const ShiftScheduler = () => {
           maxShiftsPerEmployee
         },
         teamMembers,
-        selectedWeek
+        selectedWeek,
+        shiftLength
       };
 
       // POST to jsonblob.com
@@ -1219,9 +1411,25 @@ const ShiftScheduler = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <Label htmlFor="day-shift-workers">סד"כ במשמרת יום (06:00-18:00)</Label>
+                <Label className="block" htmlFor="shift-length-select">אורך משמרת</Label>
+                <Select value={shiftLength} onValueChange={(value) => setShiftLength(value as ShiftLengthOption)}>
+                  <SelectTrigger id="shift-length-select" className="w-full">
+                    <SelectValue placeholder="בחר אורך משמרת" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SHIFT_LENGTH_OPTIONS.map(option => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 mt-1">{activeProfile.label}</p>
+              </div>
+              <div>
+                <Label className="block" htmlFor="day-shift-workers">סד"כ במשמרת יום ({dayShiftLabel})</Label>
                 <Input
                   id="day-shift-workers"
                   type="text"
@@ -1244,7 +1452,7 @@ const ShiftScheduler = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="night-shift-workers">סד"כ במשמרת לילה (18:00-06:00)</Label>
+                <Label className="block" htmlFor="night-shift-workers">סד"כ במשמרת לילה ({nightShiftLabel})</Label>
                 <Input
                   id="night-shift-workers"
                   type="text"
@@ -1267,7 +1475,7 @@ const ShiftScheduler = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="max-shifts-per-employee">מקסימום משמרות בשבוע</Label>
+                <Label className="block" htmlFor="max-shifts-per-employee">מקסימום משמרות בשבוע</Label>
                 <Input
                   id="max-shifts-per-employee"
                   type="text"
@@ -1354,7 +1562,7 @@ const ShiftScheduler = () => {
                               <td className="border border-gray-300 p-2 text-sm font-medium bg-gray-50">
                                 {dayName}
                               </td>
-                              {TIME_SLOTS.map((timeSlot) => (
+                    {activeSlots.map((timeSlot) => (
                                 <td key={timeSlot} className="border border-gray-300 p-2 text-center">
                                   <Checkbox
                                     checked={(newMemberAvailableShifts[dayIndex] || []).includes(timeSlot)}
@@ -1422,7 +1630,7 @@ const ShiftScheduler = () => {
                                       <td className="border border-gray-300 p-2 text-sm font-medium bg-gray-50">
                                         {dayName}
                                       </td>
-                                      {TIME_SLOTS.map((timeSlot) => (
+                                      {activeSlots.map((timeSlot) => (
                                         <td key={timeSlot} className="border border-gray-300 p-2 text-center">
                                           <Checkbox
                                             checked={(editMemberAvailableShifts[dayIndex] || []).includes(timeSlot)}
@@ -1540,7 +1748,7 @@ const ShiftScheduler = () => {
                               <td className="border border-gray-300 p-2 text-sm font-medium bg-gray-50">
                                 {dayName}
                               </td>
-                              {TIME_SLOTS.map((timeSlot) => {
+                    {activeSlots.map((timeSlot) => {
                                 const isAvailable = dayAvailable.includes(timeSlot);
                                 return (
                                   <td key={timeSlot} className="border border-gray-300 p-2 text-center">
@@ -1635,7 +1843,7 @@ const ShiftScheduler = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {TIME_SLOTS.map((timeSlot) => (
+                    {activeSlots.map((timeSlot) => (
                       <tr key={timeSlot} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="p-3 font-medium text-gray-700 border-l border-gray-200">
                           {timeSlot}
